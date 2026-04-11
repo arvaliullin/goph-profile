@@ -1,0 +1,312 @@
+package avatar
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/arvaliullin/goph-profile/internal/core/domain"
+	"github.com/arvaliullin/goph-profile/internal/core/ports"
+	"github.com/arvaliullin/goph-profile/pkg/imageutil"
+	"github.com/disintegration/imaging"
+	"github.com/google/uuid"
+)
+
+// Service отвечает за загрузку и выдачу аватаров: сохранение оригинала в объектном хранилище,
+// запись метаданных в БД, публикацию событий для постобработки, отдачу оригинала и миниатюр
+// в нужном формате и мягкое удаление с уведомлением очереди.
+type Service struct {
+	repo     ports.AvatarRepository
+	storage  ports.ObjectStorage
+	pub      ports.EventPublisher
+	clock    ports.Clock
+	maxBytes int64
+	baseURL  string
+}
+
+// New создает сервис аватаров.
+func New(repo ports.AvatarRepository, storage ports.ObjectStorage, pub ports.EventPublisher, clock ports.Clock, maxBytes int64, baseURL string) *Service {
+	if clock == nil {
+		clock = ports.NewRealClock()
+	}
+	return &Service{repo: repo, storage: storage, pub: pub, clock: clock, maxBytes: maxBytes, baseURL: strings.TrimRight(baseURL, "/")}
+}
+
+func objectKeyOriginal(userID string, id uuid.UUID) string {
+	return fmt.Sprintf("avatars/%s/%s/original", userID, id.String())
+}
+
+// Upload сохраняет оригинал и ставит задачу обработки в очередь.
+func (s *Service) Upload(ctx context.Context, userID string, fileName string, contentType string, r io.Reader, size int64) (*domain.Avatar, error) {
+	if userID == "" {
+		return nil, domain.ErrMissingUserID
+	}
+	if size > s.maxBytes {
+		return nil, domain.ErrFileTooLarge
+	}
+	if size <= 0 {
+		return nil, domain.ErrMissingFile
+	}
+	prefix, rest, err := imageutil.ReadSniffPrefix(r, 512)
+	if err != nil {
+		return nil, err
+	}
+	mime, err := imageutil.NormalizeContentType(contentType, prefix)
+	if err != nil {
+		return nil, domain.ErrInvalidFormat
+	}
+	lr := io.LimitReader(rest, s.maxBytes+1)
+	data, err := io.ReadAll(lr)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > s.maxBytes {
+		return nil, domain.ErrFileTooLarge
+	}
+	id := uuid.New()
+	now := s.clock.Now()
+	key := objectKeyOriginal(userID, id)
+	a := &domain.Avatar{
+		ID:               id,
+		UserID:           userID,
+		FileName:         filepath.Base(fileName),
+		MimeType:         mime,
+		SizeBytes:        int64(len(data)),
+		S3Key:            key,
+		ThumbnailS3Keys:  map[string]string{},
+		UploadStatus:     domain.UploadStatusUploading,
+		ProcessingStatus: domain.ProcessingStatusPending,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := s.storage.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mime); err != nil {
+		return nil, err
+	}
+	a.UploadStatus = domain.UploadStatusCompleted
+	if err := s.repo.Create(ctx, a); err != nil {
+		return nil, err
+	}
+	_ = s.pub.PublishUpload(ctx, ports.AvatarUploadEvent{
+		AvatarID: id.String(),
+		UserID:   userID,
+		S3Key:    key,
+	})
+	return a, nil
+}
+
+// GetImage возвращает байты изображения для варианта размера и формата.
+func (s *Service) GetImage(ctx context.Context, id uuid.UUID, size, format string) (io.ReadCloser, string, string, error) {
+	a, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, "", "", err
+	}
+	size = strings.TrimSpace(size)
+	if size == "" || size == domain.SizeOriginal {
+		return s.getOriginalEncoded(ctx, a, format)
+	}
+	if a.ThumbnailS3Keys == nil {
+		return nil, "", "", domain.ErrNotFound
+	}
+	sk, ok := a.ThumbnailS3Keys[size]
+	if !ok || sk == "" {
+		return nil, "", "", domain.ErrNotFound
+	}
+	rc, err := s.storage.Get(ctx, sk)
+	if err != nil {
+		return nil, "", "", err
+	}
+	outMime := thumbMimeForFormat(format, a.MimeType)
+	etag := etagForKey(sk)
+	if format == "" || format == "original" {
+		return rc, outMime, etag, nil
+	}
+	fmime, _ := imageutil.FormatFromQuery(format)
+	if fmime == outMime {
+		return rc, outMime, etag, nil
+	}
+	data, err := io.ReadAll(rc)
+	_ = rc.Close()
+	if err != nil {
+		return nil, "", "", err
+	}
+	img, err := imaging.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", "", err
+	}
+	b, err := imageutil.EncodeToBytes(img, fmime)
+	if err != nil {
+		return nil, "", "", err
+	}
+	etag2 := sha256.Sum256(b)
+	return io.NopCloser(bytes.NewReader(b)), fmime, hex.EncodeToString(etag2[:]), nil
+}
+
+func thumbMimeForFormat(format string, original string) string {
+	if format == "" {
+		return original
+	}
+	m, err := imageutil.FormatFromQuery(format)
+	if err != nil {
+		return original
+	}
+	return m
+}
+
+func etagForKey(key string) string {
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:])
+}
+
+func (s *Service) getOriginalEncoded(ctx context.Context, a *domain.Avatar, format string) (io.ReadCloser, string, string, error) {
+	rc, err := s.storage.Get(ctx, a.S3Key)
+	if err != nil {
+		return nil, "", "", err
+	}
+	if format == "" {
+		return rc, a.MimeType, etagForKey(a.S3Key), nil
+	}
+	fmime, err := imageutil.FormatFromQuery(format)
+	if err != nil {
+		_ = rc.Close()
+		return nil, "", "", err
+	}
+	if fmime == a.MimeType {
+		return rc, a.MimeType, etagForKey(a.S3Key), nil
+	}
+	data, err := io.ReadAll(rc)
+	_ = rc.Close()
+	if err != nil {
+		return nil, "", "", err
+	}
+	img, err := imaging.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, "", "", err
+	}
+	b, err := imageutil.EncodeToBytes(img, fmime)
+	if err != nil {
+		return nil, "", "", err
+	}
+	sum := sha256.Sum256(b)
+	return io.NopCloser(bytes.NewReader(b)), fmime, hex.EncodeToString(sum[:]), nil
+}
+
+// GetImageForUser возвращает последний аватар пользователя.
+func (s *Service) GetImageForUser(ctx context.Context, userID string) (io.ReadCloser, string, string, error) {
+	a, err := s.repo.GetLatestByUserID(ctx, userID)
+	if err != nil {
+		return nil, "", "", err
+	}
+	return s.getOriginalEncoded(ctx, a, "")
+}
+
+// Metadata формирует map для JSON по одному аватару.
+func (s *Service) Metadata(ctx context.Context, id uuid.UUID, base string) (map[string]any, error) {
+	a, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return s.mapMetadata(a, base), nil
+}
+
+func (s *Service) mapMetadata(a *domain.Avatar, base string) map[string]any {
+	b := base
+	if b == "" {
+		b = s.baseURL
+	}
+	path := fmt.Sprintf("/api/v1/avatars/%s", a.ID.String())
+	url := path
+	if b != "" {
+		url = b + path
+	}
+	thumbs := make([]map[string]string, 0)
+	for _, label := range []string{domain.Thumbnail100, domain.Thumbnail300} {
+		if _, ok := a.ThumbnailS3Keys[label]; ok {
+			u := path + "?size=" + label
+			if b != "" {
+				u = b + u
+			}
+			thumbs = append(thumbs, map[string]string{
+				"size": label,
+				"url":  u,
+			})
+		}
+	}
+	dim := map[string]int{}
+	if a.OriginalWidth != nil && a.OriginalHeight != nil {
+		dim["width"] = *a.OriginalWidth
+		dim["height"] = *a.OriginalHeight
+	}
+	return map[string]any{
+		"id":                a.ID.String(),
+		"user_id":           a.UserID,
+		"file_name":         a.FileName,
+		"mime_type":         a.MimeType,
+		"size":              a.SizeBytes,
+		"dimensions":        dim,
+		"thumbnails":        thumbs,
+		"created_at":        a.CreatedAt.UTC().Format(time.RFC3339),
+		"updated_at":        a.UpdatedAt.UTC().Format(time.RFC3339),
+		"url":               url,
+		"processing_status": a.ProcessingStatus,
+		"upload_status":     a.UploadStatus,
+	}
+}
+
+// ListMetadata возвращает метаданные всех аватаров пользователя.
+func (s *Service) ListMetadata(ctx context.Context, userID string, base string) ([]map[string]any, error) {
+	list, err := s.repo.ListByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(list) == 0 {
+		return []map[string]any{}, nil
+	}
+	out := make([]map[string]any, 0, len(list))
+	for i := range list {
+		out = append(out, s.mapMetadata(&list[i], base))
+	}
+	return out, nil
+}
+
+// Delete удаляет аватар при совпадении владельца.
+func (s *Service) Delete(ctx context.Context, id uuid.UUID, userID string) error {
+	a, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if a.UserID != userID {
+		return domain.ErrForbidden
+	}
+	keys := []string{a.S3Key}
+	for _, k := range a.ThumbnailS3Keys {
+		if k != "" {
+			keys = append(keys, k)
+		}
+	}
+	ok, err := s.repo.SoftDelete(ctx, id, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrNotFound
+	}
+	return s.pub.PublishDelete(ctx, ports.AvatarDeleteEvent{AvatarID: id.String(), S3Keys: keys})
+}
+
+// DeleteForUser удаляет последний аватар пользователя.
+func (s *Service) DeleteForUser(ctx context.Context, userID, requestUserID string) error {
+	if userID != requestUserID {
+		return domain.ErrForbidden
+	}
+	a, err := s.repo.GetLatestByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	return s.Delete(ctx, a.ID, requestUserID)
+}

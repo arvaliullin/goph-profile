@@ -1,0 +1,334 @@
+basePath: /
+definitions:
+  internal_api_http_handlers.avatarUploadResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      url:
+        type: string
+      user_id:
+        type: string
+    type: object
+  internal_api_http_handlers.healthResponse:
+    properties:
+      kafka:
+        $ref: '#/definitions/internal_api_http_handlers.status'
+      minio:
+        $ref: '#/definitions/internal_api_http_handlers.status'
+      postgres:
+        $ref: '#/definitions/internal_api_http_handlers.status'
+    type: object
+  internal_api_http_handlers.status:
+    properties:
+      error:
+        type: string
+      ok:
+        type: boolean
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: REST API сервиса профилей и аватаров (загрузка, выдача изображений
+    и метаданных).
+  title: GophProfile API
+  version: "1.0"
+paths:
+  /api/v1/avatars:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Принимает multipart/form-data с полем file. Требуется заголовок
+        X-User-ID.
+      parameters:
+      - description: Идентификатор пользователя
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Изображение
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_api_http_handlers.avatarUploadResponse'
+        "400":
+          description: Неверный запрос или отсутствует X-User-ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "413":
+          description: Файл слишком большой
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Внутренняя ошибка
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - UserIDAuth: []
+      summary: Загрузить аватар
+      tags:
+      - avatars
+  /api/v1/avatars/{avatarID}:
+    delete:
+      parameters:
+      - description: Идентификатор пользователя
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: UUID аватара
+        in: path
+        name: avatarID
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Нет тела ответа
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - UserIDAuth: []
+      summary: Удалить аватар по ID
+      tags:
+      - avatars
+    get:
+      parameters:
+      - description: UUID аватара
+        in: path
+        name: avatarID
+        required: true
+        type: string
+      - description: Размер превью
+        in: query
+        name: size
+        type: string
+      - description: Формат выдачи (например webp)
+        in: query
+        name: format
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Тело изображения
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Получить изображение аватара
+      tags:
+      - avatars
+  /api/v1/avatars/{avatarID}/metadata:
+    get:
+      parameters:
+      - description: UUID аватара
+        in: path
+        name: avatarID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Метаданные аватара
+      tags:
+      - avatars
+  /api/v1/users/{userID}/avatar:
+    delete:
+      parameters:
+      - description: Идентификатор пользователя (инициатор)
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Идентификатор пользователя-владельца
+        in: path
+        name: userID
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Нет тела ответа
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - UserIDAuth: []
+      summary: Удалить аватар пользователя
+      tags:
+      - avatars
+    get:
+      parameters:
+      - description: Идентификатор пользователя
+        in: path
+        name: userID
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Тело изображения
+          schema:
+            type: file
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Аватар пользователя по user ID
+      tags:
+      - avatars
+  /api/v1/users/{userID}/avatars:
+    get:
+      parameters:
+      - description: Идентификатор пользователя
+        in: path
+        name: userID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Список аватаров пользователя
+      tags:
+      - avatars
+  /health:
+    get:
+      description: Статус подключения к postgres, minio и Kafka.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_http_handlers.healthResponse'
+      summary: Health check
+      tags:
+      - health
+securityDefinitions:
+  UserIDAuth:
+    in: header
+    name: X-User-ID
+    type: apiKey
+swagger: "2.0"

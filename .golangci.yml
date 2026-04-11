@@ -1,0 +1,61 @@
+version: "2"
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errname
+    - errorlint
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - noctx
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - unconvert
+    - unused
+    - whitespace
+  disable:
+    - errcheck
+  settings:
+    gosec:
+      excludes:
+        - G104
+        - G115
+      severity: medium
+      confidence: medium
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    whitespace:
+      multi-if: true
+      multi-func: true
+  exclusions:
+    generated: lax
+    presets:
+      - common-false-positives
+    rules:
+      - linters:
+          - gosec
+          - misspell
+          - noctx
+        path: _test\.go$
+    paths:
+      - docs$
+      - node_modules
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - docs$
+      - node_modules

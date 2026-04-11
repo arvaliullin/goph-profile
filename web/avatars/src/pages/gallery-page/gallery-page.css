@@ -1,0 +1,38 @@
+.gallery__title {
+  margin: 0 0 1.5rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.gallery__me {
+  max-width: 36rem;
+}
+
+.gallery__me-input {
+  max-width: 20rem;
+}
+
+.gallery__toolbar {
+  margin: 0 0 1rem;
+}
+
+.gallery__error {
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(248, 81, 73, 0.12);
+  color: var(--color-danger);
+  white-space: pre-wrap;
+  font-size: 0.875rem;
+}
+
+.gallery__loading,
+.gallery__empty {
+  color: var(--color-muted);
+}
+
+.gallery__grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
