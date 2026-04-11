@@ -2,13 +2,14 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/arvaliullin/goph-profile/internal/repository/minio"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+const healthCheckTimeout = 3 * time.Second
 
 // Health сводная проверка зависимостей.
 type Health struct {
@@ -37,7 +38,7 @@ type healthResponse struct {
 // @Success 200 {object} healthResponse
 // @Router /health [get]
 func (h *Health) Handle(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), healthCheckTimeout)
 	defer cancel()
 	out := healthResponse{
 		Postgres: status{OK: true},
@@ -59,7 +60,5 @@ func (h *Health) Handle(w http.ResponseWriter, r *http.Request) {
 			out.Kafka = status{OK: false, Error: err.Error()}
 		}
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(out)
+	writeJSON(w, http.StatusOK, out)
 }

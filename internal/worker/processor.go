@@ -34,6 +34,12 @@ func NewProcessor(repo AvatarStore, storage ports.ObjectStorage, log zerolog.Log
 	return &Processor{repo: repo, storage: storage, log: log}
 }
 
+func (p *Processor) markProcessingFailed(ctx context.Context, id uuid.UUID) {
+	if err := p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusFailed); err != nil {
+		p.log.Warn().Err(err).Stringer("avatar_id", id).Msg("set processing status to failed")
+	}
+}
+
 // HandleUpload обрабатывает события avatar.upload.
 func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
 	var ev ports.AvatarUploadEvent
@@ -59,18 +65,18 @@ func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
 	}
 	rc, err := p.storage.Get(ctx, ev.S3Key)
 	if err != nil {
-		_ = p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusFailed)
+		p.markProcessingFailed(ctx, id)
 		return err
 	}
+	defer rc.Close()
 	data, err := io.ReadAll(rc)
-	_ = rc.Close()
 	if err != nil {
-		_ = p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusFailed)
+		p.markProcessingFailed(ctx, id)
 		return err
 	}
 	w, h, err := imageutil.Dimensions(bytes.NewReader(data))
 	if err != nil {
-		_ = p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusFailed)
+		p.markProcessingFailed(ctx, id)
 		return err
 	}
 	if err := p.repo.UpdateOriginalDimensions(ctx, id, w, h); err != nil {
@@ -81,12 +87,12 @@ func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
 		f := imageutil.FormatFromMIME(a.MimeType)
 		out, _, err := imageutil.DecodeAndResize(bytes.NewReader(data), label, f)
 		if err != nil {
-			_ = p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusFailed)
+			p.markProcessingFailed(ctx, id)
 			return err
 		}
 		tk := thumbKey(id, label, a.MimeType)
 		if err := p.storage.Put(ctx, tk, bytes.NewReader(out), int64(len(out)), mimeForThumb(a.MimeType)); err != nil {
-			_ = p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusFailed)
+			p.markProcessingFailed(ctx, id)
 			return err
 		}
 		keys[label] = tk

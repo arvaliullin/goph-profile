@@ -25,7 +25,7 @@ func RunMigrations(ctx context.Context, dsn string) error {
 		if err != nil {
 			return err
 		}
-		defer func() { _ = db.Close() }()
+		defer db.Close()
 
 		if err := goose.SetDialect("postgres"); err != nil {
 			return err

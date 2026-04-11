@@ -17,6 +17,11 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	httpReadHeaderTimeout = 10 * time.Second
+	httpReadWriteTimeout  = 60 * time.Second
+)
+
 // Profiled HTTP-сервис profiled (REST API и health).
 type Profiled struct {
 	cfg  *config.Server
@@ -86,9 +91,9 @@ func NewProfiled(ctx context.Context) (*Profiled, error) {
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           httpserver.NewRouter(httpserver.Deps{Log: log, Avatar: avh, Health: health}),
-		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       60 * time.Second,
-		WriteTimeout:      60 * time.Second,
+		ReadHeaderTimeout: httpReadHeaderTimeout,
+		ReadTimeout:       httpReadWriteTimeout,
+		WriteTimeout:      httpReadWriteTimeout,
 	}
 
 	return &Profiled{

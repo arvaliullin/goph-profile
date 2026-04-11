@@ -165,9 +165,10 @@ func TestGetImageOriginalAndFormat(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "image/jpeg", mime)
 	require.NotEmpty(t, etag)
-	b, err := io.ReadAll(rc)
-	_ = rc.Close()
-	require.NoError(t, err)
+	b, rerr := io.ReadAll(rc)
+	cerr := rc.Close()
+	require.NoError(t, rerr)
+	require.NoError(t, cerr)
 	require.NotEmpty(t, b)
 }
 
@@ -198,8 +199,9 @@ func TestGetImageForUser(t *testing.T) {
 	rc, mime, _, err := svc.GetImageForUser(context.Background(), "u")
 	require.NoError(t, err)
 	require.Equal(t, "image/jpeg", mime)
-	_, _ = io.ReadAll(rc)
-	_ = rc.Close()
+	_, rerr := io.ReadAll(rc)
+	require.NoError(t, rerr)
+	require.NoError(t, rc.Close())
 }
 
 func TestDeleteOK(t *testing.T) {
@@ -287,8 +289,9 @@ func TestGetImageThumbFormatTranscode(t *testing.T) {
 	rc, mime, _, err := svc.GetImage(context.Background(), id, domain.Thumbnail300, "png")
 	require.NoError(t, err)
 	require.Equal(t, "image/png", mime)
-	_, _ = io.ReadAll(rc)
-	_ = rc.Close()
+	_, rerr := io.ReadAll(rc)
+	require.NoError(t, rerr)
+	require.NoError(t, rc.Close())
 }
 
 func TestGetImageThumbOK(t *testing.T) {
@@ -319,8 +322,9 @@ func TestGetImageThumbOK(t *testing.T) {
 	rc, mime, _, err := svc.GetImage(context.Background(), id, domain.Thumbnail100, "")
 	require.NoError(t, err)
 	require.Equal(t, "image/jpeg", mime)
-	_, _ = io.ReadAll(rc)
-	_ = rc.Close()
+	_, rerr := io.ReadAll(rc)
+	require.NoError(t, rerr)
+	require.NoError(t, rc.Close())
 }
 
 func TestGetImageThumbMissing404(t *testing.T) {

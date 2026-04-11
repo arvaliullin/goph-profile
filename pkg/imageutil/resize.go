@@ -10,6 +10,11 @@ import (
 	"github.com/disintegration/imaging"
 )
 
+const (
+	jpegQualityPreview = 85
+	jpegQualityEncode  = 90
+)
+
 // DecodeAndResize декодирует изображение и возвращает закодированные байты для заданного размера.
 func DecodeAndResize(r io.Reader, sizeLabel string, outFormat imaging.Format) ([]byte, string, error) {
 	img, err := imaging.Decode(r)
@@ -34,7 +39,7 @@ func DecodeAndResize(r io.Reader, sizeLabel string, outFormat imaging.Format) ([
 		err = imaging.Encode(&buf, resized, imaging.PNG)
 	default:
 		mime = "image/jpeg"
-		err = imaging.Encode(&buf, resized, imaging.JPEG, imaging.JPEGQuality(85))
+		err = imaging.Encode(&buf, resized, imaging.JPEG, imaging.JPEGQuality(jpegQualityPreview))
 	}
 	if err != nil {
 		return nil, "", err
@@ -68,7 +73,7 @@ func EncodeToBytes(img image.Image, mime string) ([]byte, error) {
 	if f == imaging.PNG {
 		err = imaging.Encode(&buf, img, imaging.PNG)
 	} else {
-		err = imaging.Encode(&buf, img, imaging.JPEG, imaging.JPEGQuality(90))
+		err = imaging.Encode(&buf, img, imaging.JPEG, imaging.JPEGQuality(jpegQualityEncode))
 	}
 	return buf.Bytes(), err
 }

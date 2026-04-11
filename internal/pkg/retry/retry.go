@@ -13,6 +13,8 @@ var (
 	ErrStrategyNil = fmt.Errorf("retry strategy is nil")
 )
 
+const exponentialBackoffMultiplier = 2
+
 // DefaultDelays задаёт интервалы между попытками по умолчанию.
 var DefaultDelays = []time.Duration{
 	time.Second,
@@ -126,7 +128,7 @@ func ExponentialBackoffDelays(base, maxDelay time.Duration, steps int) []time.Du
 			d = maxDelay
 			continue
 		}
-		next := d * 2
+		next := d * exponentialBackoffMultiplier
 		if next < d || next > maxDelay {
 			d = maxDelay
 		} else {

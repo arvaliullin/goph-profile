@@ -26,7 +26,11 @@ func TestAvatarRepository_Integration(t *testing.T) {
 	if err != nil {
 		t.Skipf("postgres container: %v", err)
 	}
-	defer func() { _ = pg.Terminate(context.WithoutCancel(ctx)) }()
+	defer func() {
+		if terr := pg.Terminate(context.WithoutCancel(ctx)); terr != nil {
+			t.Errorf("terminate postgres: %v", terr)
+		}
+	}()
 
 	dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)

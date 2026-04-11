@@ -70,7 +70,9 @@ func scanOne(row pgx.Row) (*domain.Avatar, error) {
 		return nil, err
 	}
 	if len(thumbsRaw) > 0 {
-		_ = json.Unmarshal(thumbsRaw, &a.ThumbnailS3Keys)
+		if err := json.Unmarshal(thumbsRaw, &a.ThumbnailS3Keys); err != nil {
+			return nil, fmt.Errorf("thumbnail_s3_keys: %w", err)
+		}
 	}
 	if a.ThumbnailS3Keys == nil {
 		a.ThumbnailS3Keys = map[string]string{}

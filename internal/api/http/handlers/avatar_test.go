@@ -91,7 +91,9 @@ func TestMiddlewareUserID(t *testing.T) {
 			w.WriteHeader(http.StatusTeapot)
 			return
 		}
-		_, _ = w.Write([]byte(id))
+		if _, err := w.Write([]byte(id)); err != nil {
+			return
+		}
 	})
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.Header.Set("X-User-ID", "u")

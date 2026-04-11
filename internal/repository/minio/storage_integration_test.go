@@ -24,7 +24,11 @@ func TestStorage_PutGetDeleteMany_idempotent(t *testing.T) {
 	if err != nil {
 		t.Skipf("minio container: %v", err)
 	}
-	defer func() { _ = mc.Terminate(context.WithoutCancel(ctx)) }()
+	defer func() {
+		if terr := mc.Terminate(context.WithoutCancel(ctx)); terr != nil {
+			t.Errorf("terminate minio: %v", terr)
+		}
+	}()
 
 	ep, err := mc.ConnectionString(ctx)
 	require.NoError(t, err)
@@ -40,9 +44,10 @@ func TestStorage_PutGetDeleteMany_idempotent(t *testing.T) {
 
 	rc, err := st.Get(ctx, key)
 	require.NoError(t, err)
-	got, err := io.ReadAll(rc)
-	_ = rc.Close()
-	require.NoError(t, err)
+	got, rerr := io.ReadAll(rc)
+	cerr := rc.Close()
+	require.NoError(t, rerr)
+	require.NoError(t, cerr)
 	require.Equal(t, payload, got)
 
 	require.NoError(t, st.DeleteMany(ctx, []string{key, key}))
@@ -50,8 +55,15 @@ func TestStorage_PutGetDeleteMany_idempotent(t *testing.T) {
 
 	rc2, err := st.Get(ctx, key)
 	if err == nil {
-		_, err = io.ReadAll(rc2)
-		_ = rc2.Close()
+		var rerr error
+		_, rerr = io.ReadAll(rc2)
+		cerr := rc2.Close()
+		switch {
+		case rerr != nil:
+			err = rerr
+		case cerr != nil:
+			err = cerr
+		}
 	}
 	require.Error(t, err)
 }

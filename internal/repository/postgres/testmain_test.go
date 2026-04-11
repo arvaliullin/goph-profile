@@ -20,7 +20,9 @@ func chdirModuleRoot() {
 	}
 	for {
 		if _, err := os.Stat(filepath.Join(wd, "go.mod")); err == nil {
-			_ = os.Chdir(wd)
+			if err := os.Chdir(wd); err != nil {
+				panic(err)
+			}
 			return
 		}
 		parent := filepath.Dir(wd)

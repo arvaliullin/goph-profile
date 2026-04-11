@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -17,6 +18,8 @@ import (
 	"github.com/disintegration/imaging"
 	"github.com/google/uuid"
 )
+
+const imageSniffPrefixBytes = 512
 
 // Service отвечает за загрузку и выдачу аватаров: сохранение оригинала в объектном хранилище,
 // запись метаданных в БД, публикацию событий для постобработки, отдачу оригинала и миниатюр
@@ -53,7 +56,7 @@ func (s *Service) Upload(ctx context.Context, userID string, fileName string, co
 	if size <= 0 {
 		return nil, domain.ErrMissingFile
 	}
-	prefix, rest, err := imageutil.ReadSniffPrefix(r, 512)
+	prefix, rest, err := imageutil.ReadSniffPrefix(r, imageSniffPrefixBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -92,11 +95,13 @@ func (s *Service) Upload(ctx context.Context, userID string, fileName string, co
 	if err := s.repo.Create(ctx, a); err != nil {
 		return nil, err
 	}
-	_ = s.pub.PublishUpload(ctx, ports.AvatarUploadEvent{
+	if err := s.pub.PublishUpload(ctx, ports.AvatarUploadEvent{
 		AvatarID: id.String(),
 		UserID:   userID,
 		S3Key:    key,
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("publish upload: %w", err)
+	}
 	return a, nil
 }
 
@@ -126,14 +131,23 @@ func (s *Service) GetImage(ctx context.Context, id uuid.UUID, size, format strin
 	if format == "" || format == "original" {
 		return rc, outMime, etag, nil
 	}
-	fmime, _ := imageutil.FormatFromQuery(format)
+	fmime, err := imageutil.FormatFromQuery(format)
+	if err != nil {
+		if cerr := rc.Close(); cerr != nil {
+			return nil, "", "", errors.Join(err, cerr)
+		}
+		return nil, "", "", err
+	}
 	if fmime == outMime {
 		return rc, outMime, etag, nil
 	}
-	data, err := io.ReadAll(rc)
-	_ = rc.Close()
-	if err != nil {
-		return nil, "", "", err
+	data, rerr := io.ReadAll(rc)
+	cerr := rc.Close()
+	if rerr != nil {
+		return nil, "", "", rerr
+	}
+	if cerr != nil {
+		return nil, "", "", cerr
 	}
 	img, err := imaging.Decode(bytes.NewReader(data))
 	if err != nil {
@@ -173,16 +187,21 @@ func (s *Service) getOriginalEncoded(ctx context.Context, a *domain.Avatar, form
 	}
 	fmime, err := imageutil.FormatFromQuery(format)
 	if err != nil {
-		_ = rc.Close()
+		if cerr := rc.Close(); cerr != nil {
+			return nil, "", "", errors.Join(err, cerr)
+		}
 		return nil, "", "", err
 	}
 	if fmime == a.MimeType {
 		return rc, a.MimeType, etagForKey(a.S3Key), nil
 	}
-	data, err := io.ReadAll(rc)
-	_ = rc.Close()
-	if err != nil {
-		return nil, "", "", err
+	data, rerr := io.ReadAll(rc)
+	cerr := rc.Close()
+	if rerr != nil {
+		return nil, "", "", rerr
+	}
+	if cerr != nil {
+		return nil, "", "", cerr
 	}
 	img, err := imaging.Decode(bytes.NewReader(data))
 	if err != nil {

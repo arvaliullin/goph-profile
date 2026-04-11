@@ -12,8 +12,14 @@ import (
 // ErrUnknownTopic возвращается из dispatchMessage для неизвестного топика (повторять бессмысленно).
 var ErrUnknownTopic = errors.New("kafka: unknown topic")
 
+const (
+	consumerRetryInitialDelay = 200 * time.Millisecond
+	consumerRetryMaxDelay     = 15 * time.Second
+	consumerRetrySteps        = 6
+)
+
 var consumerHandlerRetry = retry.NewStrategy(
-	retry.ExponentialBackoffDelays(200*time.Millisecond, 15*time.Second, 6),
+	retry.ExponentialBackoffDelays(consumerRetryInitialDelay, consumerRetryMaxDelay, consumerRetrySteps),
 	isConsumerHandlerRetryable,
 )
 
@@ -73,7 +79,7 @@ func RunConsumerGroup(ctx context.Context, brokers []string, group string, cfg C
 	if err != nil {
 		return err
 	}
-	defer func() { _ = g.Close() }()
+	defer g.Close()
 
 	topics := []string{cfg.TopicUpload, cfg.TopicDelete}
 	h := &claimHandler{cfg: cfg, handler: gh}

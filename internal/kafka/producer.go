@@ -10,8 +10,14 @@ import (
 	"github.com/arvaliullin/goph-profile/internal/pkg/retry"
 )
 
+const (
+	producerRetryInitialDelay = 50 * time.Millisecond
+	producerRetryMaxDelay     = 8 * time.Second
+	producerRetrySteps        = 8
+)
+
 var producerPublishRetry = retry.NewStrategy(
-	retry.ExponentialBackoffDelays(50*time.Millisecond, 8*time.Second, 8),
+	retry.ExponentialBackoffDelays(producerRetryInitialDelay, producerRetryMaxDelay, producerRetrySteps),
 	IsProducerKafkaRetryable,
 )
 

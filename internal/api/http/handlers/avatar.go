@@ -14,6 +14,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// multipartOverheadBytes запас байт сверх лимита тела запроса под служебные данные multipart.
+const multipartOverheadBytes = 1024
+
 // AvatarHTTP REST-обработчики аватаров.
 type AvatarHTTP struct {
 	svc       ports.AvatarService
@@ -55,8 +58,8 @@ func (h *AvatarHTTP) Upload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, map[string]string{"error": "X-User-ID required"})
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, h.maxBytes+1024)
-	if err := r.ParseMultipartForm(h.maxBytes + 1024); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, h.maxBytes+multipartOverheadBytes)
+	if err := r.ParseMultipartForm(h.maxBytes + multipartOverheadBytes); err != nil {
 		writeError(w, http.StatusRequestEntityTooLarge, imageutil.ErrFileTooLarge(h.maxBytes))
 		return
 	}
@@ -65,14 +68,21 @@ func (h *AvatarHTTP) Upload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, map[string]string{"error": "file required"})
 		return
 	}
-	defer func() { _ = f.Close() }()
+	defer f.Close()
 	a, err := h.svc.Upload(r.Context(), uid, hdr.Filename, hdr.Header.Get("Content-Type"), f, hdr.Size)
 	if err != nil {
 		h.mapErr(w, err)
 		return
 	}
-	meta, _ := h.svc.Metadata(r.Context(), a.ID, h.publicURL)
-	url, _ := meta["url"].(string)
+	meta, err := h.svc.Metadata(r.Context(), a.ID, h.publicURL)
+	if err != nil {
+		h.mapErr(w, err)
+		return
+	}
+	var url string
+	if u, ok := meta["url"].(string); ok {
+		url = u
+	}
 	writeJSON(w, http.StatusCreated, avatarUploadResponse{
 		ID:        a.ID.String(),
 		UserID:    a.UserID,
@@ -122,11 +132,13 @@ func (h *AvatarHTTP) GetImage(w http.ResponseWriter, r *http.Request) {
 		h.mapErr(w, err)
 		return
 	}
-	defer func() { _ = rc.Close() }()
+	defer rc.Close()
 	w.Header().Set("Content-Type", mime)
 	w.Header().Set("Cache-Control", "max-age=86400")
 	w.Header().Set("ETag", `"`+etag+`"`)
-	_, _ = io.Copy(w, rc)
+	if _, err := io.Copy(w, rc); err != nil {
+		return
+	}
 }
 
 // Metadata возвращает JSON-метаданные аватара.
@@ -199,11 +211,13 @@ func (h *AvatarHTTP) UserAvatar(w http.ResponseWriter, r *http.Request) {
 		h.mapErr(w, err)
 		return
 	}
-	defer func() { _ = rc.Close() }()
+	defer rc.Close()
 	w.Header().Set("Content-Type", mime)
 	w.Header().Set("Cache-Control", "max-age=86400")
 	w.Header().Set("ETag", `"`+etag+`"`)
-	_, _ = io.Copy(w, rc)
+	if _, err := io.Copy(w, rc); err != nil {
+		return
+	}
 }
 
 // UserAvatars возвращает список метаданных аватаров пользователя.
