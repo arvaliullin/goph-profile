@@ -2,43 +2,21 @@ package handlers
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/arvaliullin/goph-profile/internal/api/http/middleware"
 	"github.com/arvaliullin/goph-profile/internal/core/domain"
+	"github.com/arvaliullin/goph-profile/internal/core/ports/mocks"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
-
-type errSvc struct{ e error }
-
-func (e errSvc) Upload(ctx context.Context, userID string, fileName string, contentType string, r io.Reader, size int64) (*domain.Avatar, error) {
-	return nil, e.e
-}
-func (errSvc) GetImage(ctx context.Context, id uuid.UUID, size, format string) (io.ReadCloser, string, string, error) {
-	return nil, "", "", domain.ErrNotFound
-}
-func (errSvc) GetImageForUser(ctx context.Context, userID string) (io.ReadCloser, string, string, error) {
-	return nil, "", "", domain.ErrNotFound
-}
-func (errSvc) Metadata(ctx context.Context, id uuid.UUID, baseURL string) (map[string]any, error) {
-	return nil, domain.ErrNotFound
-}
-func (errSvc) ListMetadata(ctx context.Context, userID string, baseURL string) ([]map[string]any, error) {
-	return nil, domain.ErrNotFound
-}
-func (errSvc) Delete(ctx context.Context, id uuid.UUID, userID string) error {
-	return domain.ErrForbidden
-}
-func (errSvc) DeleteForUser(ctx context.Context, userID, requestUserID string) error {
-	return domain.ErrForbidden
-}
 
 func multipartUpload(t *testing.T, user string) *http.Request {
 	t.Helper()
@@ -59,7 +37,11 @@ func multipartUpload(t *testing.T, user string) *http.Request {
 
 func TestAvatarHTTP_UploadInvalidFormat(t *testing.T) {
 	t.Parallel()
-	h := NewAvatarHTTP(errSvc{e: domain.ErrInvalidFormat}, 1024, "")
+	ctrl := gomock.NewController(t)
+	mock := mocks.NewMockAvatarService(ctrl)
+	mock.EXPECT().Upload(gomock.Any(), "u1", "a.jpg", gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, domain.ErrInvalidFormat)
+	h := NewAvatarHTTP(mock, 1024, "")
 	r := chi.NewRouter()
 	r.Use(middleware.UserIDFromHeader)
 	r.Post("/avatars", h.Upload)
@@ -71,7 +53,15 @@ func TestAvatarHTTP_UploadInvalidFormat(t *testing.T) {
 
 func TestAvatarHTTP_UploadMultipart(t *testing.T) {
 	t.Parallel()
-	h := NewAvatarHTTP(&stubSvc{}, 1024, "")
+	ctrl := gomock.NewController(t)
+	mock := mocks.NewMockAvatarService(ctrl)
+	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	av := &domain.Avatar{ID: id, UserID: "u1", CreatedAt: time.Unix(0, 0).UTC()}
+	mock.EXPECT().Upload(gomock.Any(), "u1", "a.jpg", gomock.Any(), gomock.Any(), gomock.Any()).Return(av, nil)
+	mock.EXPECT().Metadata(gomock.Any(), id, "").Return(map[string]any{
+		"id": id.String(), "url": "/api/v1/avatars/" + id.String(),
+	}, nil)
+	h := NewAvatarHTTP(mock, 1024, "")
 	r := chi.NewRouter()
 	r.Use(middleware.UserIDFromHeader)
 	r.Post("/avatars", h.Upload)
@@ -83,7 +73,13 @@ func TestAvatarHTTP_UploadMultipart(t *testing.T) {
 
 func TestAvatarHTTP_Metadata(t *testing.T) {
 	t.Parallel()
-	h := NewAvatarHTTP(&stubSvc{}, 1024, "")
+	ctrl := gomock.NewController(t)
+	mock := mocks.NewMockAvatarService(ctrl)
+	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	mock.EXPECT().Metadata(gomock.Any(), id, "").Return(map[string]any{
+		"id": id.String(), "url": "/api/v1/avatars/" + id.String(),
+	}, nil)
+	h := NewAvatarHTTP(mock, 1024, "")
 	r := chi.NewRouter()
 	r.Get("/avatars/{avatarID}/metadata", h.Metadata)
 	req := httptest.NewRequest(http.MethodGet, "/avatars/11111111-1111-1111-1111-111111111111/metadata", nil)
@@ -94,7 +90,11 @@ func TestAvatarHTTP_Metadata(t *testing.T) {
 
 func TestAvatarHTTP_Delete403(t *testing.T) {
 	t.Parallel()
-	h := NewAvatarHTTP(&stubSvc{}, 1024, "")
+	ctrl := gomock.NewController(t)
+	mock := mocks.NewMockAvatarService(ctrl)
+	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	mock.EXPECT().Delete(gomock.Any(), id, "u").Return(domain.ErrForbidden)
+	h := NewAvatarHTTP(mock, 1024, "")
 	r := chi.NewRouter()
 	r.Use(middleware.UserIDFromHeader)
 	r.Delete("/avatars/{avatarID}", h.DeleteAvatar)
@@ -107,7 +107,14 @@ func TestAvatarHTTP_Delete403(t *testing.T) {
 
 func TestAvatarHTTP_UserRoutes(t *testing.T) {
 	t.Parallel()
-	h := NewAvatarHTTP(&stubSvc{}, 1024, "")
+	ctrl := gomock.NewController(t)
+	mock := mocks.NewMockAvatarService(ctrl)
+	gomock.InOrder(
+		mock.EXPECT().GetImageForUser(gomock.Any(), "u1").Return(
+			io.NopCloser(bytes.NewReader([]byte("x"))), "image/jpeg", "e", nil),
+		mock.EXPECT().ListMetadata(gomock.Any(), "u1", "").Return([]map[string]any{}, nil),
+	)
+	h := NewAvatarHTTP(mock, 1024, "")
 	r := chi.NewRouter()
 	r.Get("/users/{userID}/avatar", h.UserAvatar)
 	r.Get("/users/{userID}/avatars", h.UserAvatars)
