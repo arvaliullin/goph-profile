@@ -48,7 +48,7 @@ func TestUploadMissingUser(t *testing.T) {
 	st := mocks.NewMockObjectStorage(ctrl)
 	pub := mocks.NewMockEventPublisher(ctrl)
 	clk := mocks.NewMockClock(ctrl)
-	svc := New(repo, st, pub, clk, 10<<20, "")
+	svc := New(repo, st, pub, clk, 10<<20)
 	_, err := svc.Upload(context.Background(), "", "a.jpg", "image/jpeg", bytes.NewReader([]byte{1}), 1)
 	require.ErrorIs(t, err, domain.ErrMissingUserID)
 }
@@ -60,7 +60,7 @@ func TestUploadTooLarge(t *testing.T) {
 	st := mocks.NewMockObjectStorage(ctrl)
 	pub := mocks.NewMockEventPublisher(ctrl)
 	clk := mocks.NewMockClock(ctrl)
-	svc := New(repo, st, pub, clk, 5, "")
+	svc := New(repo, st, pub, clk, 5)
 	_, err := svc.Upload(context.Background(), "u", "a.jpg", "image/jpeg", bytes.NewReader(bytes.Repeat([]byte{'a'}, 10)), 10)
 	require.ErrorIs(t, err, domain.ErrFileTooLarge)
 }
@@ -90,7 +90,7 @@ func TestUploadHappyPath(t *testing.T) {
 		func(_ context.Context, e ports.AvatarUploadEvent) { gotEvent = e },
 	).Return(nil)
 
-	svc := New(repo, st, pub, clk, 10<<20, "")
+	svc := New(repo, st, pub, clk, 10<<20)
 
 	a, err := svc.Upload(context.Background(), "u1", "a.jpg", "image/jpeg", bytes.NewReader(buf.Bytes()), int64(buf.Len()))
 	require.NoError(t, err)
@@ -125,13 +125,13 @@ func TestMetadataAndList(t *testing.T) {
 	data := map[string][]byte{"k": {1, 2, 3}}
 	attachMemObjectStorage(st, data)
 
-	svc := New(repo, st, pub, clk, 10<<20, "https://example.com")
+	svc := New(repo, st, pub, clk, 10<<20)
 
-	m, err := svc.Metadata(context.Background(), id, "")
+	m, err := svc.Metadata(context.Background(), id)
 	require.NoError(t, err)
-	require.Equal(t, id.String(), m["id"])
+	require.Equal(t, id.String(), m.ID.String())
 
-	list, err := svc.ListMetadata(context.Background(), "u", "")
+	list, err := svc.ListMetadata(context.Background(), "u")
 	require.NoError(t, err)
 	require.Len(t, list, 1)
 }
@@ -159,7 +159,7 @@ func TestGetImageOriginalAndFormat(t *testing.T) {
 	data := map[string][]byte{"k": append([]byte(nil), buf.Bytes()...)}
 	attachMemObjectStorage(st, data)
 
-	svc := New(repo, st, pub, clk, 10<<20, "")
+	svc := New(repo, st, pub, clk, 10<<20)
 
 	rc, mime, etag, err := svc.GetImage(context.Background(), id, domain.SizeOriginal, "jpeg")
 	require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestGetImageForUser(t *testing.T) {
 	data := map[string][]byte{"k": buf.Bytes()}
 	attachMemObjectStorage(st, data)
 
-	svc := New(repo, st, pub, clk, 10<<20, "")
+	svc := New(repo, st, pub, clk, 10<<20)
 
 	rc, mime, _, err := svc.GetImageForUser(context.Background(), "u")
 	require.NoError(t, err)
@@ -226,7 +226,7 @@ func TestDeleteOK(t *testing.T) {
 		func(_ context.Context, e ports.AvatarDeleteEvent) { del = e },
 	).Return(nil)
 
-	svc := New(repo, st, pub, clk, 10<<20, "")
+	svc := New(repo, st, pub, clk, 10<<20)
 	require.NoError(t, svc.Delete(context.Background(), id, "u"))
 	require.Equal(t, id.String(), del.AvatarID)
 	require.Contains(t, del.S3Keys, "k")
@@ -257,7 +257,7 @@ func TestDeleteForUser(t *testing.T) {
 	repo.EXPECT().SoftDelete(gomock.Any(), id, "u").Return(true, nil)
 	pub.EXPECT().PublishDelete(gomock.Any(), gomock.Any()).Return(nil)
 
-	svc := New(repo, st, pub, clk, 10<<20, "")
+	svc := New(repo, st, pub, clk, 10<<20)
 	require.NoError(t, svc.DeleteForUser(context.Background(), "u", "u"))
 }
 
@@ -284,7 +284,7 @@ func TestGetImageThumbFormatTranscode(t *testing.T) {
 	data := map[string][]byte{"tk": buf.Bytes()}
 	attachMemObjectStorage(st, data)
 
-	svc := New(repo, st, pub, clk, 10<<20, "")
+	svc := New(repo, st, pub, clk, 10<<20)
 
 	rc, mime, _, err := svc.GetImage(context.Background(), id, domain.Thumbnail300, "png")
 	require.NoError(t, err)
@@ -317,7 +317,7 @@ func TestGetImageThumbOK(t *testing.T) {
 	data := map[string][]byte{"k": buf.Bytes(), "tk": buf.Bytes()}
 	attachMemObjectStorage(st, data)
 
-	svc := New(repo, st, pub, clk, 10<<20, "")
+	svc := New(repo, st, pub, clk, 10<<20)
 
 	rc, mime, _, err := svc.GetImage(context.Background(), id, domain.Thumbnail100, "")
 	require.NoError(t, err)
@@ -343,7 +343,7 @@ func TestGetImageThumbMissing404(t *testing.T) {
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}, nil)
 
-	svc := New(repo, st, pub, clk, 10<<20, "")
+	svc := New(repo, st, pub, clk, 10<<20)
 	_, _, _, err := svc.GetImage(context.Background(), id, domain.Thumbnail100, "")
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
@@ -364,7 +364,7 @@ func TestDeleteForbidden(t *testing.T) {
 		CreatedAt:        time.Now(), UpdatedAt: time.Now(),
 	}, nil)
 
-	svc := New(repo, st, pub, clk, 10<<20, "")
+	svc := New(repo, st, pub, clk, 10<<20)
 	err := svc.Delete(context.Background(), id, "other")
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }

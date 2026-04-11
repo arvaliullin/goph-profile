@@ -10,7 +10,6 @@ import (
 	"io"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/arvaliullin/goph-profile/internal/core/domain"
 	"github.com/arvaliullin/goph-profile/internal/core/ports"
@@ -30,15 +29,14 @@ type Service struct {
 	pub      ports.EventPublisher
 	clock    ports.Clock
 	maxBytes int64
-	baseURL  string
 }
 
 // New создает сервис аватаров.
-func New(repo ports.AvatarRepository, storage ports.ObjectStorage, pub ports.EventPublisher, clock ports.Clock, maxBytes int64, baseURL string) *Service {
+func New(repo ports.AvatarRepository, storage ports.ObjectStorage, pub ports.EventPublisher, clock ports.Clock, maxBytes int64) *Service {
 	if clock == nil {
 		clock = ports.NewRealClock()
 	}
-	return &Service{repo: repo, storage: storage, pub: pub, clock: clock, maxBytes: maxBytes, baseURL: strings.TrimRight(baseURL, "/")}
+	return &Service{repo: repo, storage: storage, pub: pub, clock: clock, maxBytes: maxBytes}
 }
 
 func objectKeyOriginal(userID string, id uuid.UUID) string {
@@ -224,73 +222,21 @@ func (s *Service) GetImageForUser(ctx context.Context, userID string) (io.ReadCl
 	return s.getOriginalEncoded(ctx, a, "")
 }
 
-// Metadata формирует map для JSON по одному аватару.
-func (s *Service) Metadata(ctx context.Context, id uuid.UUID, base string) (map[string]any, error) {
-	a, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return s.mapMetadata(a, base), nil
+// Metadata возвращает доменный аватар по id для сборки HTTP-метаданных.
+func (s *Service) Metadata(ctx context.Context, id uuid.UUID) (*domain.Avatar, error) {
+	return s.repo.GetByID(ctx, id)
 }
 
-func (s *Service) mapMetadata(a *domain.Avatar, base string) map[string]any {
-	b := base
-	if b == "" {
-		b = s.baseURL
-	}
-	path := fmt.Sprintf("/api/v1/avatars/%s", a.ID.String())
-	url := path
-	if b != "" {
-		url = b + path
-	}
-	thumbs := make([]map[string]string, 0)
-	for _, label := range []string{domain.Thumbnail100, domain.Thumbnail300} {
-		if _, ok := a.ThumbnailS3Keys[label]; ok {
-			u := path + "?size=" + label
-			if b != "" {
-				u = b + u
-			}
-			thumbs = append(thumbs, map[string]string{
-				"size": label,
-				"url":  u,
-			})
-		}
-	}
-	dim := map[string]int{}
-	if a.OriginalWidth != nil && a.OriginalHeight != nil {
-		dim["width"] = *a.OriginalWidth
-		dim["height"] = *a.OriginalHeight
-	}
-	return map[string]any{
-		"id":                a.ID.String(),
-		"user_id":           a.UserID,
-		"file_name":         a.FileName,
-		"mime_type":         a.MimeType,
-		"size":              a.SizeBytes,
-		"dimensions":        dim,
-		"thumbnails":        thumbs,
-		"created_at":        a.CreatedAt.UTC().Format(time.RFC3339),
-		"updated_at":        a.UpdatedAt.UTC().Format(time.RFC3339),
-		"url":               url,
-		"processing_status": a.ProcessingStatus,
-		"upload_status":     a.UploadStatus,
-	}
-}
-
-// ListMetadata возвращает метаданные всех аватаров пользователя.
-func (s *Service) ListMetadata(ctx context.Context, userID string, base string) ([]map[string]any, error) {
+// ListMetadata возвращает список аватаров пользователя для сборки HTTP-метаданных.
+func (s *Service) ListMetadata(ctx context.Context, userID string) ([]domain.Avatar, error) {
 	list, err := s.repo.ListByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 	if len(list) == 0 {
-		return []map[string]any{}, nil
+		return []domain.Avatar{}, nil
 	}
-	out := make([]map[string]any, 0, len(list))
-	for i := range list {
-		out = append(out, s.mapMetadata(&list[i], base))
-	}
-	return out, nil
+	return list, nil
 }
 
 // Delete удаляет аватар при совпадении владельца.

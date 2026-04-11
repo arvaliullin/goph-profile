@@ -106,33 +106,33 @@ func (mr *MockAvatarServiceMockRecorder) GetImageForUser(ctx, userID any) *gomoc
 }
 
 // ListMetadata mocks base method.
-func (m *MockAvatarService) ListMetadata(ctx context.Context, userID, baseURL string) ([]map[string]any, error) {
+func (m *MockAvatarService) ListMetadata(ctx context.Context, userID string) ([]domain.Avatar, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListMetadata", ctx, userID, baseURL)
-	ret0, _ := ret[0].([]map[string]any)
+	ret := m.ctrl.Call(m, "ListMetadata", ctx, userID)
+	ret0, _ := ret[0].([]domain.Avatar)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListMetadata indicates an expected call of ListMetadata.
-func (mr *MockAvatarServiceMockRecorder) ListMetadata(ctx, userID, baseURL any) *gomock.Call {
+func (mr *MockAvatarServiceMockRecorder) ListMetadata(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMetadata", reflect.TypeOf((*MockAvatarService)(nil).ListMetadata), ctx, userID, baseURL)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMetadata", reflect.TypeOf((*MockAvatarService)(nil).ListMetadata), ctx, userID)
 }
 
 // Metadata mocks base method.
-func (m *MockAvatarService) Metadata(ctx context.Context, id uuid.UUID, baseURL string) (map[string]any, error) {
+func (m *MockAvatarService) Metadata(ctx context.Context, id uuid.UUID) (*domain.Avatar, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Metadata", ctx, id, baseURL)
-	ret0, _ := ret[0].(map[string]any)
+	ret := m.ctrl.Call(m, "Metadata", ctx, id)
+	ret0, _ := ret[0].(*domain.Avatar)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Metadata indicates an expected call of Metadata.
-func (mr *MockAvatarServiceMockRecorder) Metadata(ctx, id, baseURL any) *gomock.Call {
+func (mr *MockAvatarServiceMockRecorder) Metadata(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockAvatarService)(nil).Metadata), ctx, id, baseURL)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Metadata", reflect.TypeOf((*MockAvatarService)(nil).Metadata), ctx, id)
 }
 
 // Upload mocks base method.

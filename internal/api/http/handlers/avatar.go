@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/arvaliullin/goph-profile/internal/api/http/dto"
 	"github.com/arvaliullin/goph-profile/internal/api/http/middleware"
 	"github.com/arvaliullin/goph-profile/internal/core/domain"
 	"github.com/arvaliullin/goph-profile/internal/core/ports"
@@ -29,15 +30,6 @@ func NewAvatarHTTP(svc ports.AvatarService, maxBytes int64, publicURL string) *A
 	return &AvatarHTTP{svc: svc, maxBytes: maxBytes, publicURL: strings.TrimRight(publicURL, "/")}
 }
 
-// avatarUploadResponse ответ POST /api/v1/avatars.
-type avatarUploadResponse struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	URL       string `json:"url"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"created_at"`
-}
-
 // Upload загружает файл аватара.
 // @Summary Загрузить аватар
 // @Description Принимает multipart/form-data с полем file. Требуется заголовок X-User-ID.
@@ -46,7 +38,7 @@ type avatarUploadResponse struct {
 // @Produce json
 // @Param X-User-ID header string true "Идентификатор пользователя"
 // @Param file formData file true "Изображение"
-// @Success 201 {object} avatarUploadResponse
+// @Success 201 {object} dto.AvatarUploadResponse
 // @Failure 400 {object} map[string]string "Неверный запрос или отсутствует X-User-ID"
 // @Failure 413 {object} map[string]interface{} "Файл слишком большой"
 // @Failure 500 {object} map[string]string "Внутренняя ошибка"
@@ -74,22 +66,7 @@ func (h *AvatarHTTP) Upload(w http.ResponseWriter, r *http.Request) {
 		h.mapErr(w, err)
 		return
 	}
-	meta, err := h.svc.Metadata(r.Context(), a.ID, h.publicURL)
-	if err != nil {
-		h.mapErr(w, err)
-		return
-	}
-	var url string
-	if u, ok := meta["url"].(string); ok {
-		url = u
-	}
-	writeJSON(w, http.StatusCreated, avatarUploadResponse{
-		ID:        a.ID.String(),
-		UserID:    a.UserID,
-		URL:       url,
-		Status:    "processing",
-		CreatedAt: a.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-	})
+	writeJSON(w, http.StatusCreated, dto.NewAvatarUploadResponse(a, h.publicURL))
 }
 
 func (h *AvatarHTTP) mapErr(w http.ResponseWriter, err error) {
@@ -146,7 +123,7 @@ func (h *AvatarHTTP) GetImage(w http.ResponseWriter, r *http.Request) {
 // @Tags avatars
 // @Produce json
 // @Param avatarID path string true "UUID аватара"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} dto.AvatarMetadataResponse
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
@@ -157,12 +134,12 @@ func (h *AvatarHTTP) Metadata(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	m, err := h.svc.Metadata(r.Context(), id, h.publicURL)
+	a, err := h.svc.Metadata(r.Context(), id)
 	if err != nil {
 		h.mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, m)
+	writeJSON(w, http.StatusOK, dto.FromDomainAvatar(a, h.publicURL))
 }
 
 // DeleteAvatar удаляет аватар по id (только владелец).
@@ -225,18 +202,18 @@ func (h *AvatarHTTP) UserAvatar(w http.ResponseWriter, r *http.Request) {
 // @Tags avatars
 // @Produce json
 // @Param userID path string true "Идентификатор пользователя"
-// @Success 200 {array} map[string]interface{}
+// @Success 200 {array} dto.AvatarMetadataResponse
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /api/v1/users/{userID}/avatars [get]
 func (h *AvatarHTTP) UserAvatars(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "userID")
-	list, err := h.svc.ListMetadata(r.Context(), userID, h.publicURL)
+	list, err := h.svc.ListMetadata(r.Context(), userID)
 	if err != nil {
 		h.mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, list)
+	writeJSON(w, http.StatusOK, dto.FromDomainAvatars(list, h.publicURL))
 }
 
 // DeleteUserAvatar удаляет аватар пользователя (только свой или с правами).

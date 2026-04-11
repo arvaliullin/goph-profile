@@ -3,12 +3,12 @@ package worker
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 
 	"github.com/arvaliullin/goph-profile/internal/core/domain"
 	"github.com/arvaliullin/goph-profile/internal/core/ports"
+	"github.com/arvaliullin/goph-profile/internal/kafka"
 	"github.com/arvaliullin/goph-profile/pkg/imageutil"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -42,8 +42,8 @@ func (p *Processor) markProcessingFailed(ctx context.Context, id uuid.UUID) {
 
 // HandleUpload обрабатывает события avatar.upload.
 func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
-	var ev ports.AvatarUploadEvent
-	if err := json.Unmarshal(raw, &ev); err != nil {
+	ev, err := kafka.UnmarshalUploadEvent(raw)
+	if err != nil {
 		return err
 	}
 	id, err := uuid.Parse(ev.AvatarID)
@@ -127,8 +127,8 @@ func mimeForThumb(orig string) string {
 
 // HandleDelete удаляет объекты из хранилища.
 func (p *Processor) HandleDelete(ctx context.Context, raw []byte) error {
-	var ev ports.AvatarDeleteEvent
-	if err := json.Unmarshal(raw, &ev); err != nil {
+	ev, err := kafka.UnmarshalDeleteEvent(raw)
+	if err != nil {
 		return err
 	}
 	return p.storage.DeleteMany(ctx, ev.S3Keys)

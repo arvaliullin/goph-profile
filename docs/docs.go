@@ -53,7 +53,7 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_http_handlers.avatarUploadResponse"
+                            "$ref": "#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.AvatarUploadResponse"
                         }
                     },
                     "400": {
@@ -239,8 +239,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.AvatarMetadataResponse"
                         }
                     },
                     "400": {
@@ -409,8 +408,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "object",
-                                "additionalProperties": true
+                                "$ref": "#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.AvatarMetadataResponse"
                             }
                         }
                     },
@@ -449,7 +447,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_http_handlers.healthResponse"
+                            "$ref": "#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.HealthResponse"
                         }
                     }
                 }
@@ -457,7 +455,54 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "internal_api_http_handlers.avatarUploadResponse": {
+        "github_com_arvaliullin_goph-profile_internal_api_http_dto.AvatarMetadataResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "dimensions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "file_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "processing_status": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "thumbnails": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.ThumbnailItem"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "upload_status": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_arvaliullin_goph-profile_internal_api_http_dto.AvatarUploadResponse": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -477,21 +522,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api_http_handlers.healthResponse": {
-            "type": "object",
-            "properties": {
-                "kafka": {
-                    "$ref": "#/definitions/internal_api_http_handlers.status"
-                },
-                "minio": {
-                    "$ref": "#/definitions/internal_api_http_handlers.status"
-                },
-                "postgres": {
-                    "$ref": "#/definitions/internal_api_http_handlers.status"
-                }
-            }
-        },
-        "internal_api_http_handlers.status": {
+        "github_com_arvaliullin_goph-profile_internal_api_http_dto.ComponentStatus": {
             "type": "object",
             "properties": {
                 "error": {
@@ -499,6 +530,31 @@ const docTemplate = `{
                 },
                 "ok": {
                     "type": "boolean"
+                }
+            }
+        },
+        "github_com_arvaliullin_goph-profile_internal_api_http_dto.HealthResponse": {
+            "type": "object",
+            "properties": {
+                "kafka": {
+                    "$ref": "#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.ComponentStatus"
+                },
+                "minio": {
+                    "$ref": "#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.ComponentStatus"
+                },
+                "postgres": {
+                    "$ref": "#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.ComponentStatus"
+                }
+            }
+        },
+        "github_com_arvaliullin_goph-profile_internal_api_http_dto.ThumbnailItem": {
+            "type": "object",
+            "properties": {
+                "size": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
                 }
             }
         }

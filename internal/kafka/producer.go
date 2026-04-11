@@ -2,7 +2,6 @@ package kafka
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -43,7 +42,7 @@ func NewProducer(brokers []string, topicUpload, topicDelete string) (*Producer, 
 
 // PublishUpload публикует событие загрузки с ключом avatar_id.
 func (p *Producer) PublishUpload(ctx context.Context, e ports.AvatarUploadEvent) error {
-	b, err := json.Marshal(e)
+	b, err := MarshalUploadEvent(e)
 	if err != nil {
 		return err
 	}
@@ -60,7 +59,7 @@ func (p *Producer) PublishUpload(ctx context.Context, e ports.AvatarUploadEvent)
 
 // PublishDelete публикует событие удаления.
 func (p *Producer) PublishDelete(ctx context.Context, e ports.AvatarDeleteEvent) error {
-	b, err := json.Marshal(e)
+	b, err := MarshalDeleteEvent(e)
 	if err != nil {
 		return err
 	}

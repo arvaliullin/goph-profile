@@ -78,7 +78,7 @@ func NewProfiled(ctx context.Context) (*Profiled, error) {
 	}
 
 	repo := postgres.NewAvatarRepository(db.Pool)
-	svc := avatar.New(repo, st, prod, nil, cfg.MaxUploadBytes, cfg.PublicBaseURL)
+	svc := avatar.New(repo, st, prod, nil, cfg.MaxUploadBytes)
 
 	avh := handlers.NewAvatarHTTP(svc, cfg.MaxUploadBytes, cfg.PublicBaseURL)
 	health := &handlers.Health{

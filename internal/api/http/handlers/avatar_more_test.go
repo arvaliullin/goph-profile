@@ -58,9 +58,6 @@ func TestAvatarHTTP_UploadMultipart(t *testing.T) {
 	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
 	av := &domain.Avatar{ID: id, UserID: "u1", CreatedAt: time.Unix(0, 0).UTC()}
 	mock.EXPECT().Upload(gomock.Any(), "u1", "a.jpg", gomock.Any(), gomock.Any(), gomock.Any()).Return(av, nil)
-	mock.EXPECT().Metadata(gomock.Any(), id, "").Return(map[string]any{
-		"id": id.String(), "url": "/api/v1/avatars/" + id.String(),
-	}, nil)
 	h := NewAvatarHTTP(mock, 1024, "")
 	r := chi.NewRouter()
 	r.Use(middleware.UserIDFromHeader)
@@ -76,8 +73,11 @@ func TestAvatarHTTP_Metadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mock := mocks.NewMockAvatarService(ctrl)
 	id := uuid.MustParse("11111111-1111-1111-1111-111111111111")
-	mock.EXPECT().Metadata(gomock.Any(), id, "").Return(map[string]any{
-		"id": id.String(), "url": "/api/v1/avatars/" + id.String(),
+	mock.EXPECT().Metadata(gomock.Any(), id).Return(&domain.Avatar{
+		ID: id, UserID: "u", FileName: "a.jpg", MimeType: "image/jpeg",
+		ThumbnailS3Keys: map[string]string{},
+		UploadStatus:    domain.UploadStatusCompleted, ProcessingStatus: domain.ProcessingStatusPending,
+		CreatedAt: time.Unix(0, 0).UTC(), UpdatedAt: time.Unix(0, 0).UTC(),
 	}, nil)
 	h := NewAvatarHTTP(mock, 1024, "")
 	r := chi.NewRouter()
@@ -112,7 +112,7 @@ func TestAvatarHTTP_UserRoutes(t *testing.T) {
 	gomock.InOrder(
 		mock.EXPECT().GetImageForUser(gomock.Any(), "u1").Return(
 			io.NopCloser(bytes.NewReader([]byte("x"))), "image/jpeg", "e", nil),
-		mock.EXPECT().ListMetadata(gomock.Any(), "u1", "").Return([]map[string]any{}, nil),
+		mock.EXPECT().ListMetadata(gomock.Any(), "u1").Return([]domain.Avatar{}, nil),
 	)
 	h := NewAvatarHTTP(mock, 1024, "")
 	r := chi.NewRouter()

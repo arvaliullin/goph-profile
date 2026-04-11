@@ -1,6 +1,37 @@
 basePath: /
 definitions:
-  internal_api_http_handlers.avatarUploadResponse:
+  github_com_arvaliullin_goph-profile_internal_api_http_dto.AvatarMetadataResponse:
+    properties:
+      created_at:
+        type: string
+      dimensions:
+        additionalProperties:
+          type: integer
+        type: object
+      file_name:
+        type: string
+      id:
+        type: string
+      mime_type:
+        type: string
+      processing_status:
+        type: string
+      size:
+        type: integer
+      thumbnails:
+        items:
+          $ref: '#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.ThumbnailItem'
+        type: array
+      updated_at:
+        type: string
+      upload_status:
+        type: string
+      url:
+        type: string
+      user_id:
+        type: string
+    type: object
+  github_com_arvaliullin_goph-profile_internal_api_http_dto.AvatarUploadResponse:
     properties:
       created_at:
         type: string
@@ -13,21 +44,28 @@ definitions:
       user_id:
         type: string
     type: object
-  internal_api_http_handlers.healthResponse:
-    properties:
-      kafka:
-        $ref: '#/definitions/internal_api_http_handlers.status'
-      minio:
-        $ref: '#/definitions/internal_api_http_handlers.status'
-      postgres:
-        $ref: '#/definitions/internal_api_http_handlers.status'
-    type: object
-  internal_api_http_handlers.status:
+  github_com_arvaliullin_goph-profile_internal_api_http_dto.ComponentStatus:
     properties:
       error:
         type: string
       ok:
         type: boolean
+    type: object
+  github_com_arvaliullin_goph-profile_internal_api_http_dto.HealthResponse:
+    properties:
+      kafka:
+        $ref: '#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.ComponentStatus'
+      minio:
+        $ref: '#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.ComponentStatus'
+      postgres:
+        $ref: '#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.ComponentStatus'
+    type: object
+  github_com_arvaliullin_goph-profile_internal_api_http_dto.ThumbnailItem:
+    properties:
+      size:
+        type: string
+      url:
+        type: string
     type: object
 host: localhost:8080
 info:
@@ -60,7 +98,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/internal_api_http_handlers.avatarUploadResponse'
+            $ref: '#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.AvatarUploadResponse'
         "400":
           description: Неверный запрос или отсутствует X-User-ID
           schema:
@@ -184,8 +222,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.AvatarMetadataResponse'
         "400":
           description: Bad Request
           schema:
@@ -295,8 +332,7 @@ paths:
           description: OK
           schema:
             items:
-              additionalProperties: true
-              type: object
+              $ref: '#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.AvatarMetadataResponse'
             type: array
         "404":
           description: Not Found
@@ -322,7 +358,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api_http_handlers.healthResponse'
+            $ref: '#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.HealthResponse'
       summary: Health check
       tags:
       - health
