@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
+	"github.com/arvaliullin/goph-profile/internal/core/ports"
 	"github.com/arvaliullin/goph-profile/internal/pkg/retry"
 )
 
@@ -23,15 +24,9 @@ var consumerHandlerRetry = retry.NewStrategy(
 	isConsumerHandlerRetryable,
 )
 
-// GroupHandler обрабатывает полезную нагрузку сообщений.
-type GroupHandler interface {
-	OnUpload(ctx context.Context, payload []byte) error
-	OnDelete(ctx context.Context, payload []byte) error
-}
-
 type claimHandler struct {
 	cfg     Config
-	handler GroupHandler
+	handler ports.GroupHandler
 }
 
 // Config имена топиков для маршрутизации.
@@ -57,7 +52,7 @@ func (h *claimHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sara
 	return nil
 }
 
-func dispatchMessage(topic string, cfg Config, gh GroupHandler, ctx context.Context, value []byte) error {
+func dispatchMessage(topic string, cfg Config, gh ports.GroupHandler, ctx context.Context, value []byte) error {
 	switch topic {
 	case cfg.TopicUpload:
 		return gh.OnUpload(ctx, value)
@@ -69,7 +64,7 @@ func dispatchMessage(topic string, cfg Config, gh GroupHandler, ctx context.Cont
 }
 
 // RunConsumerGroup запускает блокирующий цикл чтения до отмены ctx.
-func RunConsumerGroup(ctx context.Context, brokers []string, group string, cfg Config, gh GroupHandler) error {
+func RunConsumerGroup(ctx context.Context, brokers []string, group string, cfg Config, gh ports.GroupHandler) error {
 	sconfig := sarama.NewConfig()
 	sconfig.Version = sarama.V2_8_0_0
 	sconfig.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRoundRobin()}

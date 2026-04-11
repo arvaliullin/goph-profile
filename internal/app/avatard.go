@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/arvaliullin/goph-profile/internal/config"
+	"github.com/arvaliullin/goph-profile/internal/core/ports"
 	"github.com/arvaliullin/goph-profile/internal/kafka"
 	"github.com/arvaliullin/goph-profile/internal/repository/minio"
 	"github.com/arvaliullin/goph-profile/internal/repository/postgres"
@@ -25,6 +26,8 @@ func (b *kafkaBridge) OnUpload(ctx context.Context, payload []byte) error {
 func (b *kafkaBridge) OnDelete(ctx context.Context, payload []byte) error {
 	return b.p.HandleDelete(ctx, payload)
 }
+
+var _ ports.GroupHandler = (*kafkaBridge)(nil)
 
 // Avatard воркер обработки Kafka (миниатюры, удаление в S3).
 type Avatard struct {
