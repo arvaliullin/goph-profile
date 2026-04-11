@@ -7,6 +7,7 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/arvaliullin/goph-profile/internal/core/ports"
 	"github.com/arvaliullin/goph-profile/internal/pkg/retry"
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -25,10 +26,11 @@ type Producer struct {
 	p        sarama.SyncProducer
 	topicUp  string
 	topicDel string
+	log      zerolog.Logger
 }
 
 // NewProducer создает синхронный producer Kafka.
-func NewProducer(brokers []string, topicUpload, topicDelete string) (*Producer, error) {
+func NewProducer(brokers []string, topicUpload, topicDelete string, log zerolog.Logger) (*Producer, error) {
 	cfg := sarama.NewConfig()
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.RequiredAcks = sarama.WaitForLocal
@@ -37,7 +39,7 @@ func NewProducer(brokers []string, topicUpload, topicDelete string) (*Producer, 
 	if err != nil {
 		return nil, err
 	}
-	return &Producer{p: p, topicUp: topicUpload, topicDel: topicDelete}, nil
+	return &Producer{p: p, topicUp: topicUpload, topicDel: topicDelete, log: log}, nil
 }
 
 // PublishUpload публикует событие загрузки с ключом avatar_id.
@@ -53,7 +55,14 @@ func (p *Producer) PublishUpload(ctx context.Context, e ports.AvatarUploadEvent)
 	}
 	return producerPublishRetry.DoWithRetry(ctx, func(ctx context.Context) error {
 		_, _, err := p.p.SendMessage(msg)
-		return err
+		if err != nil {
+			return err
+		}
+		p.log.Info().
+			Str("topic", p.topicUp).
+			Str("avatar_id", e.AvatarID).
+			Msg("kafka publish upload")
+		return nil
 	})
 }
 
@@ -70,7 +79,15 @@ func (p *Producer) PublishDelete(ctx context.Context, e ports.AvatarDeleteEvent)
 	}
 	return producerPublishRetry.DoWithRetry(ctx, func(ctx context.Context) error {
 		_, _, err := p.p.SendMessage(msg)
-		return err
+		if err != nil {
+			return err
+		}
+		p.log.Info().
+			Str("topic", p.topicDel).
+			Str("avatar_id", e.AvatarID).
+			Int("s3_keys", len(e.S3Keys)).
+			Msg("kafka publish delete")
+		return nil
 	})
 }
 

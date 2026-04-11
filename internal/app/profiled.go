@@ -71,7 +71,7 @@ func NewProfiled(ctx context.Context) (*Profiled, error) {
 		return nil, fmt.Errorf("minio: %w", err)
 	}
 
-	prod, err := kafka.NewProducer(config.KafkaBrokerList(cfg.KafkaBrokers), cfg.KafkaTopicUp, cfg.KafkaTopicDel)
+	prod, err := kafka.NewProducer(config.KafkaBrokerList(cfg.KafkaBrokers), cfg.KafkaTopicUp, cfg.KafkaTopicDel, log)
 	if err != nil {
 		db.Close()
 		return nil, fmt.Errorf("kafka producer: %w", err)

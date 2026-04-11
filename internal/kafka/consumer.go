@@ -8,9 +8,10 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/arvaliullin/goph-profile/internal/core/ports"
 	"github.com/arvaliullin/goph-profile/internal/pkg/retry"
+	"github.com/rs/zerolog"
 )
 
-// ErrUnknownTopic возвращается из dispatchMessage для неизвестного топика (повторять бессмысленно).
+// ErrUnknownTopic возвращается из dispatchMessage для неизвестного топика.
 var ErrUnknownTopic = errors.New("kafka: unknown topic")
 
 const (
@@ -27,6 +28,7 @@ var consumerHandlerRetry = retry.NewStrategy(
 type claimHandler struct {
 	cfg     Config
 	handler ports.GroupHandler
+	log     zerolog.Logger
 }
 
 // Config имена топиков для маршрутизации.
@@ -48,6 +50,11 @@ func (h *claimHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sara
 			return err
 		}
 		sess.MarkMessage(msg, "")
+		h.log.Info().
+			Str("topic", msg.Topic).
+			Int32("partition", msg.Partition).
+			Int64("offset", msg.Offset).
+			Msg("kafka consumer offset committed")
 	}
 	return nil
 }
@@ -64,7 +71,7 @@ func dispatchMessage(topic string, cfg Config, gh ports.GroupHandler, ctx contex
 }
 
 // RunConsumerGroup запускает блокирующий цикл чтения до отмены ctx.
-func RunConsumerGroup(ctx context.Context, brokers []string, group string, cfg Config, gh ports.GroupHandler) error {
+func RunConsumerGroup(ctx context.Context, brokers []string, group string, cfg Config, gh ports.GroupHandler, log zerolog.Logger) error {
 	sconfig := sarama.NewConfig()
 	sconfig.Version = sarama.V2_8_0_0
 	sconfig.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRoundRobin()}
@@ -77,7 +84,7 @@ func RunConsumerGroup(ctx context.Context, brokers []string, group string, cfg C
 	defer g.Close()
 
 	topics := []string{cfg.TopicUpload, cfg.TopicDelete}
-	h := &claimHandler{cfg: cfg, handler: gh}
+	h := &claimHandler{cfg: cfg, handler: gh, log: log}
 
 	for {
 		if err := g.Consume(ctx, topics, h); err != nil {

@@ -53,16 +53,19 @@ func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
 	a, err := p.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
+			p.log.Info().Str("avatar_id", ev.AvatarID).Msg("upload event skipped: avatar not found")
 			return nil
 		}
 		return err
 	}
 	if a.ProcessingStatus == domain.ProcessingStatusCompleted {
+		p.log.Info().Stringer("avatar_id", id).Msg("upload skipped: processing already completed")
 		return nil
 	}
 	if err = p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusProcessing); err != nil {
 		return err
 	}
+	p.log.Info().Stringer("avatar_id", id).Str("s3_key", ev.S3Key).Msg("avatar upload processing started")
 	rc, err := p.storage.Get(ctx, ev.S3Key)
 	if err != nil {
 		p.markProcessingFailed(ctx, id)
@@ -100,7 +103,15 @@ func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
 	if err := p.repo.UpdateThumbnailKeys(ctx, id, keys); err != nil {
 		return err
 	}
-	return p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusCompleted)
+	if err := p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusCompleted); err != nil {
+		return err
+	}
+	p.log.Info().
+		Stringer("avatar_id", id).
+		Int("width", w).
+		Int("height", h).
+		Msg("avatar upload processing completed")
+	return nil
 }
 
 func thumbKey(id uuid.UUID, label string, origMime string) string {
@@ -131,5 +142,12 @@ func (p *Processor) HandleDelete(ctx context.Context, raw []byte) error {
 	if err != nil {
 		return err
 	}
-	return p.storage.DeleteMany(ctx, ev.S3Keys)
+	if err := p.storage.DeleteMany(ctx, ev.S3Keys); err != nil {
+		return err
+	}
+	p.log.Info().
+		Str("avatar_id", ev.AvatarID).
+		Int("s3_keys", len(ev.S3Keys)).
+		Msg("avatar delete event processed")
+	return nil
 }

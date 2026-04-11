@@ -98,7 +98,7 @@ func (a *Avatard) Run(ctx context.Context) error {
 
 	a.log.Info().Strs("brokers", brokers).Msg("avatard starting consumer")
 
-	err := kafka.RunConsumerGroup(ctx, brokers, a.cfg.KafkaGroup, kcfg, br)
+	err := kafka.RunConsumerGroup(ctx, brokers, a.cfg.KafkaGroup, kcfg, br, a.log)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("consumer: %w", err)
 	}
