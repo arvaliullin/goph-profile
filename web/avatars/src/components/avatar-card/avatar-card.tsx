@@ -3,7 +3,7 @@ import './avatar-card.css'
 type AvatarCardProps = {
   id: string
   busy: boolean
-  onDelete: () => void
+  onDelete?: () => void
 }
 
 export default function AvatarCard({ id, busy, onDelete }: AvatarCardProps) {
@@ -17,14 +17,16 @@ export default function AvatarCard({ id, busy, onDelete }: AvatarCardProps) {
       <div className="avatar-card__preview">
         <img className="avatar-card__img" src={src} alt="" width={300} height={300} />
       </div>
-      <button
-        className="button avatar-card__delete"
-        type="button"
-        disabled={busy}
-        onClick={onDelete}
-      >
-        Удалить
-      </button>
+      {onDelete && (
+        <button
+          className="button avatar-card__delete"
+          type="button"
+          disabled={busy}
+          onClick={onDelete}
+        >
+          Удалить
+        </button>
+      )}
     </article>
   )
 }

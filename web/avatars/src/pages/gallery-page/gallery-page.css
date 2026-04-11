@@ -5,12 +5,14 @@
   word-break: break-all;
 }
 
-.gallery__me {
-  max-width: 36rem;
+.gallery__auth-hint {
+  margin: 0 0 1rem;
+  color: var(--color-muted);
+  max-width: 28rem;
 }
 
-.gallery__me-input {
-  max-width: 20rem;
+.gallery__link-home {
+  color: var(--color-accent);
 }
 
 .gallery__toolbar {

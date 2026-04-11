@@ -20,7 +20,8 @@ export default function App() {
         <Routes>
           <Route path={AppRoute.Root} element={<HomePage />} />
           <Route path={AppRoute.Upload} element={<UploadPage />} />
-          <Route path={AppRoute.Gallery} element={<GalleryPage />} />
+          <Route path={AppRoute.MyGallery} element={<GalleryPage />} />
+          <Route path={AppRoute.GalleryByUser} element={<GalleryPage />} />
           <Route path="/upload" element={<Navigate to="/web/upload" replace />} />
           <Route path="/gallery/:userId" element={<LegacyGalleryRedirect />} />
           <Route path="*" element={<NotFoundPage />} />

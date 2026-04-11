@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AppRoute } from '../../consts'
-import { loadUserId } from '../../utils/user-id-storage'
+import { useAppSelector } from '../../store/hooks'
 import './home-page.css'
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const storedId = loadUserId().trim()
-  const [galleryUserId, setGalleryUserId] = useState(storedId)
+  const sessionUserId = useAppSelector((s) => s.session.userId)?.trim() ?? ''
+  const [otherGalleryId, setOtherGalleryId] = useState('')
 
-  const openGallery = () => {
-    const id = galleryUserId.trim()
+  const openOtherGallery = () => {
+    const id = otherGalleryId.trim()
     if (!id) {
       return
     }
@@ -32,42 +32,40 @@ export default function HomePage() {
               <span className="home__card-desc">Отправить новый аватар</span>
             </Link>
 
-            {storedId ? (
-              <Link
-                className="home__card"
-                to={`/web/gallery/${encodeURIComponent(storedId)}`}
-              >
+            {sessionUserId ? (
+              <Link className="home__card" to={AppRoute.MyGallery}>
                 <span className="home__card-title">Моя галерея</span>
-                <span className="home__card-desc">Пользователь «{storedId}»</span>
+                <span className="home__card-desc">Пользователь «{sessionUserId}»</span>
               </Link>
             ) : (
               <div className="home__card home__card--muted">
                 <span className="home__card-title">Моя галерея</span>
-                <span className="home__card-desc">
-                  Сохраните идентификатор на странице загрузки
-                </span>
+                <span className="home__card-desc">Войдите по идентификатору в шапке</span>
               </div>
             )}
           </nav>
 
-          <div className="home__gallery-open">
-            <label className="form__label" htmlFor="home-gallery-user">
-              Открыть галерею по user id
-            </label>
-            <div className="home__gallery-row">
-              <input
-                id="home-gallery-user"
-                className="form__input home__gallery-input"
-                value={galleryUserId}
-                onChange={(e) => setGalleryUserId(e.target.value)}
-                placeholder="например, demo-user"
-                autoComplete="username"
-              />
-              <button className="button button--primary" type="button" onClick={openGallery}>
-                Перейти
-              </button>
+          <details className="home__details">
+            <summary className="home__details-summary">Открыть чужую галерею</summary>
+            <div className="home__details-body">
+              <label className="form__label" htmlFor="home-gallery-user">
+                User id
+              </label>
+              <div className="home__gallery-row">
+                <input
+                  id="home-gallery-user"
+                  className="form__input home__gallery-input"
+                  value={otherGalleryId}
+                  onChange={(e) => setOtherGalleryId(e.target.value)}
+                  placeholder="например, demo-user"
+                  autoComplete="username"
+                />
+                <button className="button button--primary" type="button" onClick={openOtherGallery}>
+                  Перейти
+                </button>
+              </div>
             </div>
-          </div>
+          </details>
         </section>
       </main>
     </div>

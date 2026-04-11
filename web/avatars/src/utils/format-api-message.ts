@@ -1,6 +1,5 @@
 import type { ApiErrorBody } from '../types/avatar'
 
-/** Преобразует JSON-ошибку API в строку для пользователя. */
 export function formatApiMessage(body: unknown, fallback: string): string {
   if (!body || typeof body !== 'object') {
     return fallback

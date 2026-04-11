@@ -1,23 +1,47 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import AvatarCard from '../../components/avatar-card/avatar-card'
-import { USER_STORAGE_KEY } from '../../consts'
+import { AppRoute } from '../../consts'
+import { useAppSelector } from '../../store/hooks'
 import type { AvatarListItem } from '../../types/avatar'
 import './gallery-page.css'
 
 export default function GalleryPage() {
-  const { userId = '' } = useParams()
-  const [me, setMe] = useState(() => localStorage.getItem(USER_STORAGE_KEY) ?? '')
+  const { userId: routeUserId } = useParams<{ userId?: string }>()
+  const sessionUserId = useAppSelector((s) => s.session.userId)
+
+  const isMyGalleryRoute = routeUserId === undefined
+  const displayUserId = isMyGalleryRoute
+    ? (sessionUserId?.trim() ?? '')
+    : (routeUserId ?? '')
+
+  const canDelete =
+    Boolean(sessionUserId?.trim()) &&
+    Boolean(displayUserId) &&
+    sessionUserId!.trim() === displayUserId
+
   const [items, setItems] = useState<AvatarListItem[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (isMyGalleryRoute && !sessionUserId?.trim()) {
+      setItems(null)
+      setErr(null)
+      return
+    }
+    if (!displayUserId) {
+      setItems(null)
+      setErr(null)
+      return
+    }
+
     let cancelled = false
     ;(async () => {
       setErr(null)
+      setItems(null)
       try {
-        const res = await fetch(`/api/v1/users/${encodeURIComponent(userId)}/avatars`)
+        const res = await fetch(`/api/v1/users/${encodeURIComponent(displayUserId)}/avatars`)
         if (!res.ok) {
           setErr(await res.text())
           return
@@ -35,11 +59,12 @@ export default function GalleryPage() {
     return () => {
       cancelled = true
     }
-  }, [userId])
+  }, [displayUserId, isMyGalleryRoute, sessionUserId])
 
   const del = async (id: string) => {
-    if (!me.trim()) {
-      setErr('Укажите свой User ID на странице загрузки (хранится в браузере)')
+    const me = sessionUserId?.trim()
+    if (!me) {
+      setErr('Войдите в шапке, чтобы удалять аватары')
       return
     }
     setBusyId(id)
@@ -47,7 +72,7 @@ export default function GalleryPage() {
     try {
       const res = await fetch(`/api/v1/avatars/${encodeURIComponent(id)}`, {
         method: 'DELETE',
-        headers: { 'X-User-ID': me.trim() },
+        headers: { 'X-User-ID': me },
       })
       if (!res.ok) {
         setErr(await res.text())
@@ -62,16 +87,17 @@ export default function GalleryPage() {
   }
 
   const delLatest = async () => {
-    if (!me.trim()) {
-      setErr('Укажите свой User ID на странице загрузки')
+    const me = sessionUserId?.trim()
+    if (!me) {
+      setErr('Войдите в шапке, чтобы удалять аватары')
       return
     }
     setBusyId('latest')
     setErr(null)
     try {
-      const res = await fetch(`/api/v1/users/${encodeURIComponent(userId)}/avatar`, {
+      const res = await fetch(`/api/v1/users/${encodeURIComponent(displayUserId)}/avatar`, {
         method: 'DELETE',
-        headers: { 'X-User-ID': me.trim() },
+        headers: { 'X-User-ID': me },
       })
       if (!res.ok) {
         setErr(await res.text())
@@ -85,39 +111,44 @@ export default function GalleryPage() {
     }
   }
 
+  if (isMyGalleryRoute && !sessionUserId?.trim()) {
+    return (
+      <div className="page page--gray">
+        <main className="page__main container">
+          <section className="gallery">
+            <h1 className="gallery__title">Моя галерея</h1>
+            <p className="gallery__auth-hint">
+              Войдите по идентификатору в шапке, чтобы открыть свою галерею.
+            </p>
+            <p>
+              <Link className="gallery__link-home" to={AppRoute.Root}>
+                На главную
+              </Link>
+            </p>
+          </section>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="page page--gray">
       <main className="page__main container">
         <section className="gallery">
-          <h1 className="gallery__title">Галерея: {userId}</h1>
+          <h1 className="gallery__title">Галерея: {displayUserId}</h1>
 
-          <div className="gallery__me form__row">
-            <label className="form__label" htmlFor="gallery-me">
-              Ваш User ID для удаления (X-User-ID)
-            </label>
-            <input
-              id="gallery-me"
-              className="form__input gallery__me-input"
-              value={me}
-              onChange={(e) => {
-                const v = e.target.value
-                setMe(v)
-                localStorage.setItem(USER_STORAGE_KEY, v)
-              }}
-              autoComplete="username"
-            />
-          </div>
-
-          <p className="gallery__toolbar">
-            <button
-              className="button"
-              type="button"
-              onClick={delLatest}
-              disabled={busyId !== null}
-            >
-              Удалить последний аватар
-            </button>
-          </p>
+          {canDelete && (
+            <p className="gallery__toolbar">
+              <button
+                className="button"
+                type="button"
+                onClick={delLatest}
+                disabled={busyId !== null}
+              >
+                Удалить последний аватар
+              </button>
+            </p>
+          )}
 
           {err && (
             <pre className="gallery__error" role="alert">
@@ -134,7 +165,7 @@ export default function GalleryPage() {
                   key={it.id}
                   id={it.id}
                   busy={busyId !== null}
-                  onDelete={() => del(it.id)}
+                  onDelete={canDelete ? () => del(it.id) : undefined}
                 />
               ))}
             </div>

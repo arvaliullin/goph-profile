@@ -7,3 +7,7 @@ export function loadUserId(): string {
 export function saveUserId(id: string) {
   localStorage.setItem(USER_STORAGE_KEY, id)
 }
+
+export function clearUserId() {
+  localStorage.removeItem(USER_STORAGE_KEY)
+}

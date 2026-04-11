@@ -1,19 +1,24 @@
 import { useCallback, useId, useRef, useState, type DragEvent } from 'react'
 import { MAX_FILE_SIZE_BYTES } from '../../consts'
 import type { AvatarCreateResponse } from '../../types/avatar'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import { login, logout } from '../../store/slices/session-slice'
 import { formatApiMessage } from '../../utils/format-api-message'
-import { loadUserId, saveUserId } from '../../utils/user-id-storage'
 import './upload-page.css'
 
 export default function UploadPage() {
+  const dispatch = useAppDispatch()
+  const sessionUserId = useAppSelector((s) => s.session.userId)?.trim() ?? ''
   const fileInputId = useId()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [userId, setUserId] = useState(loadUserId)
+  const [localUserId, setLocalUserId] = useState('')
   const [preview, setPreview] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+
+  const effectiveUserId = sessionUserId || localUserId.trim()
 
   const revokePreview = useCallback((url: string | null) => {
     if (url) {
@@ -36,8 +41,8 @@ export default function UploadPage() {
   )
 
   const submitApi = async () => {
-    if (!userId.trim()) {
-      setStatus('Укажите идентификатор пользователя')
+    if (!effectiveUserId) {
+      setStatus('Укажите идентификатор или войдите в шапке')
       return
     }
     if (!file) {
@@ -48,7 +53,8 @@ export default function UploadPage() {
       setStatus(`Файл больше ${MAX_FILE_SIZE_BYTES} байт`)
       return
     }
-    saveUserId(userId.trim())
+    const id = effectiveUserId.trim()
+    dispatch(login(id))
     setBusy(true)
     setStatus(null)
     const fd = new FormData()
@@ -56,7 +62,7 @@ export default function UploadPage() {
     try {
       const res = await fetch('/api/v1/avatars', {
         method: 'POST',
-        headers: { 'X-User-ID': userId.trim() },
+        headers: { 'X-User-ID': id },
         body: fd,
       })
       const body: unknown = await res.json().catch(() => ({}))
@@ -110,19 +116,37 @@ export default function UploadPage() {
               e.preventDefault()
             }}
           >
-            <div className="form__row">
-              <label className="form__label" htmlFor="user-id">
-                Ваш идентификатор пользователя
-              </label>
-              <input
-                id="user-id"
-                className="form__input"
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                placeholder="demo-user"
-                autoComplete="username"
-              />
-            </div>
+            {sessionUserId ? (
+              <div className="upload__session form__row">
+                <p className="upload__session-text">
+                  Загрузка от имени <strong className="upload__session-name">{sessionUserId}</strong>
+                </p>
+                <button
+                  type="button"
+                  className="button upload__switch"
+                  onClick={() => {
+                    dispatch(logout())
+                    setLocalUserId('')
+                  }}
+                >
+                  Сменить пользователя
+                </button>
+              </div>
+            ) : (
+              <div className="form__row">
+                <label className="form__label" htmlFor="user-id">
+                  Ваш идентификатор пользователя
+                </label>
+                <input
+                  id="user-id"
+                  className="form__input"
+                  value={localUserId}
+                  onChange={(e) => setLocalUserId(e.target.value)}
+                  placeholder="demo-user"
+                  autoComplete="username"
+                />
+              </div>
+            )}
 
             <div className="form__row">
               <span className="form__label" id={fileInputId + '-label'}>

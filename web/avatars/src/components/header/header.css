@@ -12,6 +12,60 @@
   min-height: 3.5rem;
 }
 
+.header__session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header__badge {
+  max-width: 12rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-accent);
+  background: rgba(88, 166, 255, 0.12);
+  border: 1px solid rgba(88, 166, 255, 0.35);
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header__btn {
+  font: inherit;
+  cursor: pointer;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.header__btn--primary {
+  color: var(--color-bg);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.header__btn--primary:hover {
+  filter: brightness(1.08);
+}
+
+.header__btn--ghost {
+  color: var(--color-muted);
+  background: transparent;
+  border-color: var(--color-border);
+}
+
+.header__btn--ghost:hover {
+  color: var(--color-text);
+  border-color: var(--color-muted);
+}
+
 .header__brand {
   font-weight: 600;
   font-size: 1.125rem;

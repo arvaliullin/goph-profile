@@ -1,0 +1,63 @@
+.login-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.login-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  cursor: default;
+  background: rgba(1, 4, 9, 0.72);
+  backdrop-filter: blur(4px);
+}
+
+.login-modal__card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-elevated);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.login-modal__title {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.login-modal__hint {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  line-height: 1.45;
+}
+
+.login-modal__code {
+  font-size: 0.8125rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+}
+
+.login-modal__input {
+  margin-bottom: 1.25rem;
+}
+
+.login-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
