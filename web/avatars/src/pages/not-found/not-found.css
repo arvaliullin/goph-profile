@@ -1,0 +1,22 @@
+.not-found {
+  text-align: center;
+  padding: 3rem 0;
+}
+
+.not-found__title {
+  margin: 0;
+  font-size: 4rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-muted);
+}
+
+.not-found__text {
+  margin: 1rem 0 1.5rem;
+  font-size: 1.125rem;
+}
+
+.not-found__link {
+  display: inline-block;
+  text-decoration: none;
+}

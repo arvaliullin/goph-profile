@@ -1,0 +1,27 @@
+.avatar-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  background: var(--color-surface-elevated);
+}
+
+.avatar-card__id {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  word-break: break-all;
+}
+
+.avatar-card__preview {
+  margin-top: 0.5rem;
+}
+
+.avatar-card__img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+.avatar-card__delete {
+  margin-top: 0.75rem;
+}

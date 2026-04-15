@@ -1,0 +1,16 @@
+.git
+.gitignore
+*.md
+vendor
+.env
+.cursor/
+Makefile
+build/
+deployments/
+tmp/
+web/avatars/dist/
+web/avatars/node_modules/
+web/avatars/tsconfig.tsbuildinfo
+.golangci.yml
+go.work
+go.work.sum
