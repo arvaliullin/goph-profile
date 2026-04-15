@@ -3,6 +3,7 @@ package kafka
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 
 	"github.com/IBM/sarama"
@@ -15,6 +16,9 @@ func IsProducerKafkaRetryable(err error) bool {
 		return false
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if errors.Is(err, io.EOF) {
 		return false
 	}
 	ke, ok := errors.AsType[sarama.KError](err)
@@ -42,7 +46,7 @@ func IsProducerKafkaRetryable(err error) bool {
 	if netOK && netErr.Timeout() {
 		return true
 	}
-	return true
+	return false
 }
 
 // isConsumerHandlerRetryable задаёт, повторять ли вызов обработчика после ошибки.

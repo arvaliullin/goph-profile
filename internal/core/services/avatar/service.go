@@ -239,6 +239,23 @@ func (s *Service) ListMetadata(ctx context.Context, userID string) ([]domain.Ava
 	return list, nil
 }
 
+func (s *Service) deleteOwned(ctx context.Context, a *domain.Avatar, userID string) error {
+	keys := []string{a.S3Key}
+	for _, k := range a.ThumbnailS3Keys {
+		if k != "" {
+			keys = append(keys, k)
+		}
+	}
+	ok, err := s.repo.SoftDelete(ctx, a.ID, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrNotFound
+	}
+	return s.pub.PublishDelete(ctx, ports.AvatarDeleteEvent{AvatarID: a.ID.String(), S3Keys: keys})
+}
+
 // Delete удаляет аватар при совпадении владельца.
 func (s *Service) Delete(ctx context.Context, id uuid.UUID, userID string) error {
 	a, err := s.repo.GetByID(ctx, id)
@@ -248,20 +265,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, userID string) error
 	if a.UserID != userID {
 		return domain.ErrForbidden
 	}
-	keys := []string{a.S3Key}
-	for _, k := range a.ThumbnailS3Keys {
-		if k != "" {
-			keys = append(keys, k)
-		}
-	}
-	ok, err := s.repo.SoftDelete(ctx, id, userID)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return domain.ErrNotFound
-	}
-	return s.pub.PublishDelete(ctx, ports.AvatarDeleteEvent{AvatarID: id.String(), S3Keys: keys})
+	return s.deleteOwned(ctx, a, userID)
 }
 
 // DeleteForUser удаляет последний аватар пользователя.
@@ -273,5 +277,8 @@ func (s *Service) DeleteForUser(ctx context.Context, userID, requestUserID strin
 	if err != nil {
 		return err
 	}
-	return s.Delete(ctx, a.ID, requestUserID)
+	if a.UserID != requestUserID {
+		return domain.ErrForbidden
+	}
+	return s.deleteOwned(ctx, a, requestUserID)
 }

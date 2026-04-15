@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/arvaliullin/goph-profile/internal/api/http/dto"
-	"github.com/arvaliullin/goph-profile/internal/repository/minio"
+	"github.com/arvaliullin/goph-profile/internal/core/ports"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -15,7 +15,7 @@ const healthCheckTimeout = 3 * time.Second
 // Health сводная проверка зависимостей.
 type Health struct {
 	DB        *pgxpool.Pool
-	Minio     *minio.Storage
+	Minio     ports.Pinger
 	KafkaPing func() error
 }
 

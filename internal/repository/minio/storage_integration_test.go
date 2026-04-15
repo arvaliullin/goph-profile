@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -13,9 +15,23 @@ import (
 	tminio "github.com/testcontainers/testcontainers-go/modules/minio"
 )
 
+func dockerAvailable() bool {
+	for _, sock := range []string{"/var/run/docker.sock", os.ExpandEnv("$HOME/.docker/run/docker.sock")} {
+		conn, err := net.DialTimeout("unix", sock, 200*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return true
+		}
+	}
+	return false
+}
+
 func TestStorage_PutGetDeleteMany_idempotent(t *testing.T) {
 	if testing.Short() {
 		t.Skip("docker")
+	}
+	if !dockerAvailable() {
+		t.Skip("docker is not available")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()

@@ -10,6 +10,7 @@ import (
 	httpserver "github.com/arvaliullin/goph-profile/internal/api/http"
 	"github.com/arvaliullin/goph-profile/internal/api/http/handlers"
 	"github.com/arvaliullin/goph-profile/internal/config"
+	"github.com/arvaliullin/goph-profile/internal/core/ports"
 	"github.com/arvaliullin/goph-profile/internal/core/services/avatar"
 	"github.com/arvaliullin/goph-profile/internal/kafka"
 	"github.com/arvaliullin/goph-profile/internal/repository/minio"
@@ -83,7 +84,7 @@ func NewProfiled(ctx context.Context) (*Profiled, error) {
 	avh := handlers.NewAvatarHTTP(svc, cfg.MaxUploadBytes, cfg.PublicBaseURL)
 	health := &handlers.Health{
 		DB:    db.Pool,
-		Minio: st,
+		Minio: ports.Pinger(st),
 		KafkaPing: func() error {
 			return kafka.Ping(config.KafkaBrokerList(cfg.KafkaBrokers))
 		},

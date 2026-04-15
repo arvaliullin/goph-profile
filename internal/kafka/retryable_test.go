@@ -3,6 +3,7 @@ package kafka
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"testing"
 
@@ -17,6 +18,8 @@ func TestIsProducerKafkaRetryable(t *testing.T) {
 	assert.True(t, IsProducerKafkaRetryable(sarama.ErrLeaderNotAvailable))
 	assert.True(t, IsProducerKafkaRetryable(sarama.ErrRequestTimedOut))
 	assert.False(t, IsProducerKafkaRetryable(sarama.ErrInvalidMessage))
+	assert.False(t, IsProducerKafkaRetryable(errors.New("logical")))
+	assert.False(t, IsProducerKafkaRetryable(io.EOF))
 }
 
 func TestIsProducerKafkaRetryable_netTimeout(t *testing.T) {

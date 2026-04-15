@@ -248,12 +248,6 @@ func TestDeleteForUser(t *testing.T) {
 		UploadStatus: domain.UploadStatusCompleted, ProcessingStatus: domain.ProcessingStatusCompleted,
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}, nil)
-	repo.EXPECT().GetByID(gomock.Any(), id).Return(&domain.Avatar{
-		ID: id, UserID: "u", FileName: "a.jpg", MimeType: "image/jpeg",
-		SizeBytes: 1, S3Key: "k",
-		UploadStatus: domain.UploadStatusCompleted, ProcessingStatus: domain.ProcessingStatusCompleted,
-		CreatedAt: time.Now(), UpdatedAt: time.Now(),
-	}, nil)
 	repo.EXPECT().SoftDelete(gomock.Any(), id, "u").Return(true, nil)
 	pub.EXPECT().PublishDelete(gomock.Any(), gomock.Any()).Return(nil)
 
