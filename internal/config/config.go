@@ -24,6 +24,10 @@ type Server struct {
 	MaxUploadBytes  int64         `env:"MAX_UPLOAD_BYTES" envDefault:"10485760"`
 	ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"10s"`
 	PublicBaseURL   string        `env:"PUBLIC_BASE_URL" envDefault:""`
+	LogLevel        string        `env:"LOG_LEVEL" envDefault:"info"`
+	OTLPEndpoint    string        `env:"OTEL_EXPORTER_OTLP_ENDPOINT" envDefault:""`
+	Environment     string        `env:"OTEL_ENVIRONMENT" envDefault:"local"`
+	ServiceName     string        `env:"OTEL_SERVICE_NAME" envDefault:"profiled"`
 }
 
 // Worker настройки для avatard.
@@ -39,6 +43,11 @@ type Worker struct {
 	KafkaTopicDel   string        `env:"KAFKA_TOPIC_DELETE" envDefault:"avatars.delete"`
 	KafkaGroup      string        `env:"KAFKA_GROUP" envDefault:"avatars-worker"`
 	ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"30s"`
+	MetricsAddr     string        `env:"METRICS_ADDR" envDefault:":9091"`
+	LogLevel        string        `env:"LOG_LEVEL" envDefault:"info"`
+	OTLPEndpoint    string        `env:"OTEL_EXPORTER_OTLP_ENDPOINT" envDefault:""`
+	Environment     string        `env:"OTEL_ENVIRONMENT" envDefault:"local"`
+	ServiceName     string        `env:"OTEL_SERVICE_NAME" envDefault:"avatard"`
 }
 
 // LoadServer читает переменные окружения в Server.

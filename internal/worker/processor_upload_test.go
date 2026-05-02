@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"image/color"
 	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/arvaliullin/goph-profile/internal/core/domain"
 	"github.com/arvaliullin/goph-profile/internal/core/ports"
 	"github.com/disintegration/imaging"
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -88,7 +88,7 @@ func TestHandleUploadFull(t *testing.T) {
 		},
 	}
 	st := &mapStore{data: map[string][]byte{key: buf.Bytes()}}
-	p := NewProcessor(repo, st, zerolog.Nop())
+	p := NewProcessor(repo, st, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	ev := ports.AvatarUploadEvent{AvatarID: id.String(), UserID: "u", S3Key: key}
 	raw, err := json.Marshal(ev)
 	require.NoError(t, err)

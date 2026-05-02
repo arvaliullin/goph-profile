@@ -2,12 +2,15 @@ package kafka
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/arvaliullin/goph-profile/internal/core/ports"
+	"github.com/arvaliullin/goph-profile/internal/observability"
 	"github.com/arvaliullin/goph-profile/internal/pkg/retry"
-	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -26,11 +29,11 @@ type Producer struct {
 	p        sarama.SyncProducer
 	topicUp  string
 	topicDel string
-	log      zerolog.Logger
+	log      *slog.Logger
 }
 
 // NewProducer создает синхронный producer Kafka.
-func NewProducer(brokers []string, topicUpload, topicDelete string, log zerolog.Logger) (*Producer, error) {
+func NewProducer(brokers []string, topicUpload, topicDelete string, log *slog.Logger) (*Producer, error) {
 	cfg := sarama.NewConfig()
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.RequiredAcks = sarama.WaitForLocal
@@ -44,8 +47,19 @@ func NewProducer(brokers []string, topicUpload, topicDelete string, log zerolog.
 
 // PublishUpload публикует событие загрузки с ключом avatar_id.
 func (p *Producer) PublishUpload(ctx context.Context, e ports.AvatarUploadEvent) error {
+	ctx, span := otel.Tracer("kafka-producer").Start(ctx, "kafka.publish.upload")
+	span.SetAttributes(
+		attribute.String("messaging.system", "kafka"),
+		attribute.String("messaging.destination", p.topicUp),
+		attribute.String("avatar.id", e.AvatarID),
+		attribute.String("user.id", e.UserID),
+	)
+	defer span.End()
+
 	b, err := MarshalUploadEvent(e)
 	if err != nil {
+		span.RecordError(err)
+		observability.ObserveKafkaPublish("profiled", p.topicUp, "error")
 		return err
 	}
 	msg := &sarama.ProducerMessage{
@@ -53,23 +67,39 @@ func (p *Producer) PublishUpload(ctx context.Context, e ports.AvatarUploadEvent)
 		Key:   sarama.StringEncoder(e.AvatarID),
 		Value: sarama.ByteEncoder(b),
 	}
+	carrier := newProducerHeaderCarrier(msg)
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
 	return producerPublishRetry.DoWithRetry(ctx, func(ctx context.Context) error {
 		_, _, err := p.p.SendMessage(msg)
 		if err != nil {
+			span.RecordError(err)
+			observability.ObserveKafkaPublish("profiled", p.topicUp, "error")
 			return err
 		}
-		p.log.Info().
-			Str("topic", p.topicUp).
-			Str("avatar_id", e.AvatarID).
-			Msg("kafka publish upload")
+		observability.LoggerWithTrace(ctx, p.log).InfoContext(ctx, "kafka publish upload",
+			"topic", p.topicUp,
+			"avatar_id", e.AvatarID,
+		)
+		observability.ObserveKafkaPublish("profiled", p.topicUp, "success")
 		return nil
 	})
 }
 
 // PublishDelete публикует событие удаления.
 func (p *Producer) PublishDelete(ctx context.Context, e ports.AvatarDeleteEvent) error {
+	ctx, span := otel.Tracer("kafka-producer").Start(ctx, "kafka.publish.delete")
+	span.SetAttributes(
+		attribute.String("messaging.system", "kafka"),
+		attribute.String("messaging.destination", p.topicDel),
+		attribute.String("avatar.id", e.AvatarID),
+		attribute.Int("s3.keys", len(e.S3Keys)),
+	)
+	defer span.End()
+
 	b, err := MarshalDeleteEvent(e)
 	if err != nil {
+		span.RecordError(err)
+		observability.ObserveKafkaPublish("profiled", p.topicDel, "error")
 		return err
 	}
 	msg := &sarama.ProducerMessage{
@@ -77,16 +107,21 @@ func (p *Producer) PublishDelete(ctx context.Context, e ports.AvatarDeleteEvent)
 		Key:   sarama.StringEncoder(e.AvatarID),
 		Value: sarama.ByteEncoder(b),
 	}
+	carrier := newProducerHeaderCarrier(msg)
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
 	return producerPublishRetry.DoWithRetry(ctx, func(ctx context.Context) error {
 		_, _, err := p.p.SendMessage(msg)
 		if err != nil {
+			span.RecordError(err)
+			observability.ObserveKafkaPublish("profiled", p.topicDel, "error")
 			return err
 		}
-		p.log.Info().
-			Str("topic", p.topicDel).
-			Str("avatar_id", e.AvatarID).
-			Int("s3_keys", len(e.S3Keys)).
-			Msg("kafka publish delete")
+		observability.LoggerWithTrace(ctx, p.log).InfoContext(ctx, "kafka publish delete",
+			"topic", p.topicDel,
+			"avatar_id", e.AvatarID,
+			"s3_keys", len(e.S3Keys),
+		)
+		observability.ObserveKafkaPublish("profiled", p.topicDel, "success")
 		return nil
 	})
 }

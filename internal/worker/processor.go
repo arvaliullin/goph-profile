@@ -5,13 +5,16 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 
 	"github.com/arvaliullin/goph-profile/internal/core/domain"
 	"github.com/arvaliullin/goph-profile/internal/core/ports"
 	"github.com/arvaliullin/goph-profile/internal/kafka"
+	"github.com/arvaliullin/goph-profile/internal/observability"
 	"github.com/arvaliullin/goph-profile/pkg/imageutil"
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // AvatarStore контракт доступа к аватарам в PostgreSQL для процессора.
@@ -26,63 +29,84 @@ type AvatarStore interface {
 type Processor struct {
 	repo    AvatarStore
 	storage ports.ObjectStorage
-	log     zerolog.Logger
+	log     *slog.Logger
 }
 
 // NewProcessor создает процессор.
-func NewProcessor(repo AvatarStore, storage ports.ObjectStorage, log zerolog.Logger) *Processor {
+func NewProcessor(repo AvatarStore, storage ports.ObjectStorage, log *slog.Logger) *Processor {
 	return &Processor{repo: repo, storage: storage, log: log}
 }
 
 func (p *Processor) markProcessingFailed(ctx context.Context, id uuid.UUID) {
 	if err := p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusFailed); err != nil {
-		p.log.Warn().Err(err).Stringer("avatar_id", id).Msg("set processing status to failed")
+		observability.LoggerWithTrace(ctx, p.log).Warn("set processing status to failed", "error", err, "avatar_id", id.String())
 	}
 }
 
 // HandleUpload обрабатывает события avatar.upload.
 func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
+	ctx, span := otel.Tracer("avatard-worker").Start(ctx, "worker.handle_upload")
+	defer span.End()
 	ev, err := kafka.UnmarshalUploadEvent(raw)
 	if err != nil {
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
+	span.SetAttributes(attribute.String("avatar.id", ev.AvatarID), attribute.String("avatar.s3_key", ev.S3Key))
 	id, err := uuid.Parse(ev.AvatarID)
 	if err != nil {
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
 	a, err := p.repo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			p.log.Info().Str("avatar_id", ev.AvatarID).Msg("upload event skipped: avatar not found")
+			observability.LoggerWithTrace(ctx, p.log).Info("upload event skipped: avatar not found", "avatar_id", ev.AvatarID)
+			observability.ObserveWorkerJob("avatard", "upload", "skipped")
 			return nil
 		}
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
 	if a.ProcessingStatus == domain.ProcessingStatusCompleted {
-		p.log.Info().Stringer("avatar_id", id).Msg("upload skipped: processing already completed")
+		observability.LoggerWithTrace(ctx, p.log).Info("upload skipped: processing already completed", "avatar_id", id.String())
+		observability.ObserveWorkerJob("avatard", "upload", "skipped")
 		return nil
 	}
 	if err = p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusProcessing); err != nil {
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
-	p.log.Info().Stringer("avatar_id", id).Str("s3_key", ev.S3Key).Msg("avatar upload processing started")
+	observability.LoggerWithTrace(ctx, p.log).Info("avatar upload processing started", "avatar_id", id.String(), "s3_key", ev.S3Key)
 	rc, err := p.storage.Get(ctx, ev.S3Key)
 	if err != nil {
 		p.markProcessingFailed(ctx, id)
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
 	defer rc.Close()
 	data, err := io.ReadAll(rc)
 	if err != nil {
 		p.markProcessingFailed(ctx, id)
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
 	w, h, err := imageutil.Dimensions(bytes.NewReader(data))
 	if err != nil {
 		p.markProcessingFailed(ctx, id)
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
 	if err := p.repo.UpdateOriginalDimensions(ctx, id, w, h); err != nil {
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
 	keys := map[string]string{}
@@ -91,26 +115,35 @@ func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
 		out, _, err := imageutil.DecodeAndResize(bytes.NewReader(data), label, f)
 		if err != nil {
 			p.markProcessingFailed(ctx, id)
+			span.RecordError(err)
+			observability.ObserveWorkerJob("avatard", "upload", "error")
 			return err
 		}
 		tk := thumbKey(id, label, a.MimeType)
 		if err := p.storage.Put(ctx, tk, bytes.NewReader(out), int64(len(out)), mimeForThumb(a.MimeType)); err != nil {
 			p.markProcessingFailed(ctx, id)
+			span.RecordError(err)
+			observability.ObserveWorkerJob("avatard", "upload", "error")
 			return err
 		}
 		keys[label] = tk
 	}
 	if err := p.repo.UpdateThumbnailKeys(ctx, id, keys); err != nil {
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
 	if err := p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusCompleted); err != nil {
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
-	p.log.Info().
-		Stringer("avatar_id", id).
-		Int("width", w).
-		Int("height", h).
-		Msg("avatar upload processing completed")
+	observability.LoggerWithTrace(ctx, p.log).Info("avatar upload processing completed",
+		"avatar_id", id.String(),
+		"width", w,
+		"height", h,
+	)
+	observability.ObserveWorkerJob("avatard", "upload", "success")
 	return nil
 }
 
@@ -138,16 +171,24 @@ func mimeForThumb(orig string) string {
 
 // HandleDelete удаляет объекты из хранилища.
 func (p *Processor) HandleDelete(ctx context.Context, raw []byte) error {
+	ctx, span := otel.Tracer("avatard-worker").Start(ctx, "worker.handle_delete")
+	defer span.End()
 	ev, err := kafka.UnmarshalDeleteEvent(raw)
 	if err != nil {
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "delete", "error")
 		return err
 	}
+	span.SetAttributes(attribute.String("avatar.id", ev.AvatarID), attribute.Int("s3.keys", len(ev.S3Keys)))
 	if err := p.storage.DeleteMany(ctx, ev.S3Keys); err != nil {
+		span.RecordError(err)
+		observability.ObserveWorkerJob("avatard", "delete", "error")
 		return err
 	}
-	p.log.Info().
-		Str("avatar_id", ev.AvatarID).
-		Int("s3_keys", len(ev.S3Keys)).
-		Msg("avatar delete event processed")
+	observability.LoggerWithTrace(ctx, p.log).Info("avatar delete event processed",
+		"avatar_id", ev.AvatarID,
+		"s3_keys", len(ev.S3Keys),
+	)
+	observability.ObserveWorkerJob("avatard", "delete", "success")
 	return nil
 }

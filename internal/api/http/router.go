@@ -1,12 +1,13 @@
 package httpserver
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/arvaliullin/goph-profile/internal/api/http/handlers"
 	"github.com/arvaliullin/goph-profile/internal/api/http/middleware"
+	"github.com/arvaliullin/goph-profile/internal/observability"
 	"github.com/go-chi/chi/v5"
-	"github.com/rs/zerolog"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
@@ -21,16 +22,18 @@ import (
 
 // Deps зависимости HTTP API.
 type Deps struct {
-	Log    zerolog.Logger
-	Avatar *handlers.AvatarHTTP
-	Health *handlers.Health
+	Log     *slog.Logger
+	Service string
+	Avatar  *handlers.AvatarHTTP
+	Health  *handlers.Health
 }
 
 // NewRouter собирает chi mux.
 func NewRouter(d Deps) http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestLogger(d.Log))
+	r.Use(middleware.RequestLogger(d.Log, d.Service))
 	r.Get("/health", d.Health.Handle)
+	r.Handle("/metrics", observability.MetricsHandler())
 
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),

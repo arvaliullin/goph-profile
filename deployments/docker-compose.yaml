@@ -8,7 +8,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U avatars -d avatars"]
       interval: 5s
@@ -51,6 +51,11 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     volumes:
       - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   profiled:
     build:
@@ -69,13 +74,17 @@ services:
       KAFKA_TOPIC_DELETE: avatars.delete
       MAX_UPLOAD_BYTES: "10485760"
       PUBLIC_BASE_URL: ""
+      LOG_LEVEL: info
+      OTEL_ENVIRONMENT: docker
+      OTEL_SERVICE_NAME: profiled
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4318
     depends_on:
       postgres:
         condition: service_healthy
       minio:
         condition: service_started
       kafka:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/health"]
       interval: 10s
@@ -97,13 +106,18 @@ services:
       KAFKA_TOPIC_UPLOAD: avatars.upload
       KAFKA_TOPIC_DELETE: avatars.delete
       KAFKA_GROUP: avatars-worker
+      METRICS_ADDR: ":9091"
+      LOG_LEVEL: info
+      OTEL_ENVIRONMENT: docker
+      OTEL_SERVICE_NAME: avatard
+      OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4318
     depends_on:
       profiled:
         condition: service_healthy
       minio:
         condition: service_started
       kafka:
-        condition: service_started
+        condition: service_healthy
 
   http:
     build:
@@ -114,6 +128,59 @@ services:
     depends_on:
       profiled:
         condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ../configs/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      profiled:
+        condition: service_healthy
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.61.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+
+  loki:
+    image: grafana/loki:3.2.1
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ../configs/observability/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+    ports:
+      - "3100:3100"
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ../configs/observability/promtail/promtail-config.yaml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ../configs/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../configs/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
 
 volumes:
   postgres-data:
