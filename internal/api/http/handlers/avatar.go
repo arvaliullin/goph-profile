@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"bytes"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strings"
 
@@ -51,22 +53,75 @@ func (h *AvatarHTTP) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, h.maxBytes+multipartOverheadBytes)
-	if err := r.ParseMultipartForm(h.maxBytes + multipartOverheadBytes); err != nil {
-		writeError(w, http.StatusRequestEntityTooLarge, imageutil.ErrFileTooLarge(h.maxBytes))
+	mr, err := r.MultipartReader()
+	if err != nil {
+		if isMultipartTooLarge(err) {
+			writeError(w, http.StatusRequestEntityTooLarge, imageutil.ErrFileTooLarge(h.maxBytes))
+			return
+		}
+		writeError(w, http.StatusBadRequest, map[string]string{"error": "invalid multipart body"})
 		return
 	}
-	f, hdr, err := r.FormFile("file")
+	fileName, contentType, data, err := readUploadFile(mr, h.maxBytes)
 	if err != nil {
+		if isMultipartTooLarge(err) || errors.Is(err, domain.ErrFileTooLarge) {
+			writeError(w, http.StatusRequestEntityTooLarge, imageutil.ErrFileTooLarge(h.maxBytes))
+			return
+		}
+		writeError(w, http.StatusBadRequest, map[string]string{"error": "invalid multipart body"})
+		return
+	}
+	if fileName == "" {
 		writeError(w, http.StatusBadRequest, map[string]string{"error": "file required"})
 		return
 	}
-	defer f.Close()
-	a, err := h.svc.Upload(r.Context(), uid, hdr.Filename, hdr.Header.Get("Content-Type"), f, hdr.Size)
+	a, err := h.svc.Upload(r.Context(), uid, fileName, contentType, bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		h.mapErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, dto.NewAvatarUploadResponse(a, h.publicURL))
+}
+
+func readUploadFile(mr *multipart.Reader, maxBytes int64) (string, string, []byte, error) {
+	var fileName, contentType string
+	var data []byte
+	for {
+		part, err := mr.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return "", "", nil, err
+		}
+		if part.FormName() != "file" {
+			io.Copy(io.Discard, part)
+			part.Close()
+			continue
+		}
+		if fileName != "" {
+			io.Copy(io.Discard, part)
+			part.Close()
+			continue
+		}
+		fileName = part.FileName()
+		contentType = part.Header.Get("Content-Type")
+		limited := io.LimitReader(part, maxBytes+1)
+		data, err = io.ReadAll(limited)
+		part.Close()
+		if err != nil {
+			return "", "", nil, err
+		}
+		if int64(len(data)) > maxBytes {
+			return "", "", nil, domain.ErrFileTooLarge
+		}
+	}
+	return fileName, contentType, data, nil
+}
+
+func isMultipartTooLarge(err error) bool {
+	var maxErr *http.MaxBytesError
+	return errors.As(err, &maxErr) || errors.Is(err, multipart.ErrMessageTooLarge)
 }
 
 func (h *AvatarHTTP) mapErr(w http.ResponseWriter, err error) {
