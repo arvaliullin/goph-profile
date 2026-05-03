@@ -180,7 +180,6 @@ services:
     depends_on:
       - prometheus
       - loki
-      - jaeger
 
 volumes:
   postgres-data:

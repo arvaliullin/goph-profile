@@ -48,24 +48,25 @@ func NewAvatard(ctx context.Context) (*Avatard, error) {
 		return nil, fmt.Errorf("config: %w", err)
 	}
 
-	log := observability.NewLogger(cfg.ServiceName, cfg.LogLevel)
+	log := observability.NewLogger(cfg.Telemetry.ServiceName, cfg.LogLevel)
 	traceShutdown, err := observability.InitTracing(ctx, observability.TelemetryConfig{
-		ServiceName:  cfg.ServiceName,
-		Environment:  cfg.Environment,
-		OTLPEndpoint: cfg.OTLPEndpoint,
+		ServiceName:  cfg.Telemetry.ServiceName,
+		Environment:  cfg.Telemetry.Environment,
+		OTLPEndpoint: cfg.Telemetry.OTLPEndpoint,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init tracing: %w", err)
 	}
 
 	log.Info("avatard configuration loaded",
-		"minio_endpoint", cfg.MinioEndpoint,
-		"minio_bucket", cfg.MinioBucket,
-		"minio_secure", cfg.MinioSecure,
-		"kafka_brokers", cfg.KafkaBrokers,
-		"kafka_topic_upload", cfg.KafkaTopicUp,
-		"kafka_topic_delete", cfg.KafkaTopicDel,
-		"kafka_group", cfg.KafkaGroup,
+		"minio_endpoint", cfg.Minio.Endpoint,
+		"minio_bucket", cfg.Minio.Bucket,
+		"minio_secure", cfg.Minio.Secure,
+		"kafka_brokers", cfg.Kafka.Brokers,
+		"kafka_topic_upload", cfg.Kafka.TopicUpload,
+		"kafka_topic_delete", cfg.Kafka.TopicDelete,
+		"kafka_group", cfg.Kafka.Group,
+		"kafka_max_message_bytes", cfg.Kafka.MaxMessageBytes,
 		"shutdown_timeout", cfg.ShutdownTimeout.String(),
 		"metrics_addr", cfg.MetricsAddr,
 	)
@@ -78,7 +79,7 @@ func NewAvatard(ctx context.Context) (*Avatard, error) {
 		return nil, fmt.Errorf("postgres: %w", err)
 	}
 
-	st, err := minio.New(ctx, cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioSecure, cfg.MinioBucket)
+	st, err := minio.New(ctx, cfg.Minio.Endpoint, cfg.Minio.AccessKey, cfg.Minio.SecretKey, cfg.Minio.Secure, cfg.Minio.Bucket)
 	if err != nil {
 		db.Close()
 		if shutdownErr := traceShutdown(context.Background()); shutdownErr != nil {
@@ -118,8 +119,12 @@ func (a *Avatard) Run(ctx context.Context) error {
 		}
 	}()
 
-	kcfg := kafka.Config{TopicUpload: a.cfg.KafkaTopicUp, TopicDelete: a.cfg.KafkaTopicDel}
-	brokers := config.KafkaBrokerList(a.cfg.KafkaBrokers)
+	kcfg := kafka.Config{
+		TopicUpload:     a.cfg.Kafka.TopicUpload,
+		TopicDelete:     a.cfg.Kafka.TopicDelete,
+		MaxMessageBytes: a.cfg.Kafka.MaxMessageBytes,
+	}
+	brokers := config.KafkaBrokerList(a.cfg.Kafka.Brokers)
 	br := &kafkaBridge{p: a.proc}
 
 	go func() {
@@ -131,7 +136,7 @@ func (a *Avatard) Run(ctx context.Context) error {
 				return
 			case <-ticker.C:
 				stats := a.db.Pool.Stat()
-				observability.ObserveDBPool(a.cfg.ServiceName, stats.TotalConns(), stats.IdleConns(), stats.AcquiredConns())
+				observability.ObserveDBPool(a.cfg.Telemetry.ServiceName, stats.TotalConns(), stats.IdleConns(), stats.AcquiredConns())
 			}
 		}
 	}()
@@ -146,13 +151,13 @@ func (a *Avatard) Run(ctx context.Context) error {
 	}()
 	a.log.Info("avatard starting consumer", "brokers", brokers)
 
-	err := kafka.RunConsumerGroup(ctx, brokers, a.cfg.KafkaGroup, kcfg, br, a.log)
+	err := kafka.RunConsumerGroup(ctx, brokers, a.cfg.Kafka.Group, kcfg, br, a.log)
 	wg.Wait()
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("consumer: %w", err)
 	}
 	stats := a.db.Pool.Stat()
-	observability.ObserveDBPool(a.cfg.ServiceName, stats.TotalConns(), stats.IdleConns(), stats.AcquiredConns())
+	observability.ObserveDBPool(a.cfg.Telemetry.ServiceName, stats.TotalConns(), stats.IdleConns(), stats.AcquiredConns())
 
 	return nil
 }

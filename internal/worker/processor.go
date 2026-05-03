@@ -45,7 +45,8 @@ func (p *Processor) markProcessingFailed(ctx context.Context, id uuid.UUID) {
 
 // HandleUpload обрабатывает события avatar.upload.
 func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
-	ctx, span := otel.Tracer("avatard-worker").Start(ctx, "worker.handle_upload")
+	tracer := otel.Tracer("avatard-worker")
+	ctx, span := tracer.Start(ctx, "worker.handle_upload")
 	defer span.End()
 	ev, err := kafka.UnmarshalUploadEvent(raw)
 	if err != nil {
@@ -82,7 +83,9 @@ func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
 		return err
 	}
 	observability.LoggerWithTrace(ctx, p.log).Info("avatar upload processing started", "avatar_id", id.String(), "s3_key", ev.S3Key)
-	rc, err := p.storage.Get(ctx, ev.S3Key)
+	fetchCtx, fetchSpan := tracer.Start(ctx, "worker.handle_upload.storage_get")
+	rc, err := p.storage.Get(fetchCtx, ev.S3Key)
+	fetchSpan.End()
 	if err != nil {
 		p.markProcessingFailed(ctx, id)
 		span.RecordError(err)
@@ -90,54 +93,72 @@ func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
 		return err
 	}
 	defer rc.Close()
+	_, readSpan := tracer.Start(ctx, "worker.handle_upload.read_original")
 	data, err := io.ReadAll(rc)
+	readSpan.End()
 	if err != nil {
 		p.markProcessingFailed(ctx, id)
 		span.RecordError(err)
 		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
+	_, dimSpan := tracer.Start(ctx, "worker.handle_upload.detect_dimensions")
 	w, h, err := imageutil.Dimensions(bytes.NewReader(data))
+	dimSpan.End()
 	if err != nil {
 		p.markProcessingFailed(ctx, id)
 		span.RecordError(err)
 		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
-	if err := p.repo.UpdateOriginalDimensions(ctx, id, w, h); err != nil {
+	dimWriteCtx, dimWriteSpan := tracer.Start(ctx, "worker.handle_upload.persist_dimensions")
+	if err := p.repo.UpdateOriginalDimensions(dimWriteCtx, id, w, h); err != nil {
+		dimWriteSpan.End()
 		span.RecordError(err)
 		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
+	dimWriteSpan.End()
 	keys := map[string]string{}
 	for _, label := range []string{domain.Thumbnail100, domain.Thumbnail300} {
+		resizeCtx, resizeSpan := tracer.Start(ctx, "worker.handle_upload.resize")
+		resizeSpan.SetAttributes(attribute.String("thumbnail.label", label))
 		f := imageutil.FormatFromMIME(a.MimeType)
 		out, _, err := imageutil.DecodeAndResize(bytes.NewReader(data), label, f)
 		if err != nil {
+			resizeSpan.End()
 			p.markProcessingFailed(ctx, id)
 			span.RecordError(err)
 			observability.ObserveWorkerJob("avatard", "upload", "error")
 			return err
 		}
 		tk := thumbKey(id, label, a.MimeType)
-		if err := p.storage.Put(ctx, tk, bytes.NewReader(out), int64(len(out)), mimeForThumb(a.MimeType)); err != nil {
+		if err := p.storage.Put(resizeCtx, tk, bytes.NewReader(out), int64(len(out)), mimeForThumb(a.MimeType)); err != nil {
+			resizeSpan.End()
 			p.markProcessingFailed(ctx, id)
 			span.RecordError(err)
 			observability.ObserveWorkerJob("avatard", "upload", "error")
 			return err
 		}
+		resizeSpan.End()
 		keys[label] = tk
 	}
-	if err := p.repo.UpdateThumbnailKeys(ctx, id, keys); err != nil {
+	thumbCtx, thumbSpan := tracer.Start(ctx, "worker.handle_upload.persist_thumbnails")
+	if err := p.repo.UpdateThumbnailKeys(thumbCtx, id, keys); err != nil {
+		thumbSpan.End()
 		span.RecordError(err)
 		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
-	if err := p.repo.UpdateProcessingStatus(ctx, id, domain.ProcessingStatusCompleted); err != nil {
+	thumbSpan.End()
+	doneCtx, doneSpan := tracer.Start(ctx, "worker.handle_upload.mark_completed")
+	if err := p.repo.UpdateProcessingStatus(doneCtx, id, domain.ProcessingStatusCompleted); err != nil {
+		doneSpan.End()
 		span.RecordError(err)
 		observability.ObserveWorkerJob("avatard", "upload", "error")
 		return err
 	}
+	doneSpan.End()
 	observability.LoggerWithTrace(ctx, p.log).Info("avatar upload processing completed",
 		"avatar_id", id.String(),
 		"width", w,

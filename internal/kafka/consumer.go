@@ -36,8 +36,9 @@ type claimHandler struct {
 
 // Config имена топиков для маршрутизации.
 type Config struct {
-	TopicUpload string
-	TopicDelete string
+	TopicUpload     string
+	TopicDelete     string
+	MaxMessageBytes int
 }
 
 func (h *claimHandler) Setup(sarama.ConsumerGroupSession) error   { return nil }
@@ -91,6 +92,7 @@ func RunConsumerGroup(ctx context.Context, brokers []string, group string, cfg C
 	sconfig.Version = sarama.V2_8_0_0
 	sconfig.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRoundRobin()}
 	sconfig.Consumer.Offsets.Initial = sarama.OffsetOldest
+	sconfig.Consumer.Fetch.Max = int32(cfg.MaxMessageBytes)
 
 	g, err := sarama.NewConsumerGroup(brokers, group, sconfig)
 	if err != nil {

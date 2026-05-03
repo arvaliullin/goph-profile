@@ -42,7 +42,7 @@ var (
 			Name: "avatars_uploads_total",
 			Help: "Total number of avatar uploads",
 		},
-		[]string{"service", "status", "user_id"},
+		[]string{"service", "status"},
 	)
 	uploadDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -57,14 +57,14 @@ var (
 			Name: "avatars_storage_bytes",
 			Help: "Total storage used by avatars",
 		},
-		[]string{"service", "user_id"},
+		[]string{"service"},
 	)
 	deletesTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "avatars_deletes_total",
 			Help: "Total number of avatar deletes",
 		},
-		[]string{"service", "status", "user_id"},
+		[]string{"service", "status"},
 	)
 	kafkaPublishedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -135,25 +135,25 @@ func ObserveHTTPRequest(service, method, route string, status int, dur time.Dura
 }
 
 // ObserveUpload пишет бизнес-метрики загрузки.
-func ObserveUpload(service, status, userID string, dur time.Duration, size int64) {
+func ObserveUpload(service, status string, dur time.Duration, size int64) {
 	ensureRegistry()
-	uploadsTotal.WithLabelValues(service, status, userID).Inc()
+	uploadsTotal.WithLabelValues(service, status).Inc()
 	uploadDuration.WithLabelValues(service, status).Observe(dur.Seconds())
 	if status == "success" {
-		storageUsage.WithLabelValues(service, userID).Add(float64(size))
+		storageUsage.WithLabelValues(service).Add(float64(size))
 	}
 }
 
 // ObserveDeleteStorage уменьшает метрику занятого хранилища.
-func ObserveDeleteStorage(service, userID string, size int64) {
+func ObserveDeleteStorage(service string, size int64) {
 	ensureRegistry()
-	storageUsage.WithLabelValues(service, userID).Sub(float64(size))
+	storageUsage.WithLabelValues(service).Sub(float64(size))
 }
 
 // ObserveDelete пишет бизнес-метрики удаления.
-func ObserveDelete(service, status, userID string) {
+func ObserveDelete(service, status string) {
 	ensureRegistry()
-	deletesTotal.WithLabelValues(service, status, userID).Inc()
+	deletesTotal.WithLabelValues(service, status).Inc()
 }
 
 // ObserveKafkaPublish пишет метрику публикации.

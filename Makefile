@@ -10,7 +10,7 @@ install-deps: ## Установить инструменты (mockgen, goose, sw
 	- go install go.uber.org/mock/mockgen@v0.6.0
 	- go install github.com/pressly/goose/v3/cmd/goose@latest
 	- go install github.com/swaggo/swag/cmd/swag@latest
-	- go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	- go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
 
 .PHONY: generate
 generate: ## Сгенерировать моки и Swagger (go generate, swag init)

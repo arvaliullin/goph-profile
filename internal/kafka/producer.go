@@ -33,10 +33,11 @@ type Producer struct {
 }
 
 // NewProducer создает синхронный producer Kafka.
-func NewProducer(brokers []string, topicUpload, topicDelete string, log *slog.Logger) (*Producer, error) {
+func NewProducer(brokers []string, topicUpload, topicDelete string, maxMessageBytes int, log *slog.Logger) (*Producer, error) {
 	cfg := sarama.NewConfig()
 	cfg.Producer.Return.Successes = true
 	cfg.Producer.RequiredAcks = sarama.WaitForLocal
+	cfg.Producer.MaxMessageBytes = maxMessageBytes
 	cfg.Version = sarama.V2_8_0_0
 	p, err := sarama.NewSyncProducer(brokers, cfg)
 	if err != nil {

@@ -31,23 +31,23 @@ type Deps struct {
 // NewRouter собирает chi mux.
 func NewRouter(d Deps) http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestLogger(d.Log, d.Service))
-	r.Get("/health", d.Health.Handle)
 	r.Handle("/metrics", observability.MetricsHandler())
-
-	r.Get("/swagger/*", httpSwagger.Handler(
-		httpSwagger.URL("/swagger/doc.json"),
-	))
-
-	r.Route("/api/v1", func(r chi.Router) {
-		r.Use(middleware.UserIDFromHeader)
-		r.Post("/avatars", d.Avatar.Upload)
-		r.Get("/avatars/{avatarID}", d.Avatar.GetImage)
-		r.Get("/avatars/{avatarID}/metadata", d.Avatar.Metadata)
-		r.Delete("/avatars/{avatarID}", d.Avatar.DeleteAvatar)
-		r.Get("/users/{userID}/avatar", d.Avatar.UserAvatar)
-		r.Get("/users/{userID}/avatars", d.Avatar.UserAvatars)
-		r.Delete("/users/{userID}/avatar", d.Avatar.DeleteUserAvatar)
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.RequestLogger(d.Log, d.Service))
+		r.Get("/health", d.Health.Handle)
+		r.Get("/swagger/*", httpSwagger.Handler(
+			httpSwagger.URL("/swagger/doc.json"),
+		))
+		r.Route("/api/v1", func(r chi.Router) {
+			r.Use(middleware.UserIDFromHeader)
+			r.Post("/avatars", d.Avatar.Upload)
+			r.Get("/avatars/{avatarID}", d.Avatar.GetImage)
+			r.Get("/avatars/{avatarID}/metadata", d.Avatar.Metadata)
+			r.Delete("/avatars/{avatarID}", d.Avatar.DeleteAvatar)
+			r.Get("/users/{userID}/avatar", d.Avatar.UserAvatar)
+			r.Get("/users/{userID}/avatars", d.Avatar.UserAvatars)
+			r.Delete("/users/{userID}/avatar", d.Avatar.DeleteUserAvatar)
+		})
 	})
 
 	return r

@@ -41,11 +41,11 @@ func NewProfiled(ctx context.Context) (*Profiled, error) {
 		return nil, fmt.Errorf("config: %w", err)
 	}
 
-	log := observability.NewLogger(cfg.ServiceName, cfg.LogLevel)
+	log := observability.NewLogger(cfg.Telemetry.ServiceName, cfg.LogLevel)
 	traceShutdown, err := observability.InitTracing(ctx, observability.TelemetryConfig{
-		ServiceName:  cfg.ServiceName,
-		Environment:  cfg.Environment,
-		OTLPEndpoint: cfg.OTLPEndpoint,
+		ServiceName:  cfg.Telemetry.ServiceName,
+		Environment:  cfg.Telemetry.Environment,
+		OTLPEndpoint: cfg.Telemetry.OTLPEndpoint,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init tracing: %w", err)
@@ -53,12 +53,13 @@ func NewProfiled(ctx context.Context) (*Profiled, error) {
 
 	log.Info("profiled configuration loaded",
 		"http_addr", cfg.HTTPAddr,
-		"minio_endpoint", cfg.MinioEndpoint,
-		"minio_bucket", cfg.MinioBucket,
-		"minio_secure", cfg.MinioSecure,
-		"kafka_brokers", cfg.KafkaBrokers,
-		"kafka_topic_upload", cfg.KafkaTopicUp,
-		"kafka_topic_delete", cfg.KafkaTopicDel,
+		"minio_endpoint", cfg.Minio.Endpoint,
+		"minio_bucket", cfg.Minio.Bucket,
+		"minio_secure", cfg.Minio.Secure,
+		"kafka_brokers", cfg.Kafka.Brokers,
+		"kafka_topic_upload", cfg.Kafka.TopicUpload,
+		"kafka_topic_delete", cfg.Kafka.TopicDelete,
+		"kafka_max_message_bytes", cfg.Kafka.MaxMessageBytes,
 		"max_upload_bytes", cfg.MaxUploadBytes,
 		"shutdown_timeout", cfg.ShutdownTimeout.String(),
 		"public_base_url", cfg.PublicBaseURL,
@@ -78,7 +79,7 @@ func NewProfiled(ctx context.Context) (*Profiled, error) {
 		return nil, fmt.Errorf("postgres: %w", err)
 	}
 
-	st, err := minio.New(ctx, cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioSecure, cfg.MinioBucket)
+	st, err := minio.New(ctx, cfg.Minio.Endpoint, cfg.Minio.AccessKey, cfg.Minio.SecretKey, cfg.Minio.Secure, cfg.Minio.Bucket)
 	if err != nil {
 		db.Close()
 		if shutdownErr := traceShutdown(context.Background()); shutdownErr != nil {
@@ -87,7 +88,13 @@ func NewProfiled(ctx context.Context) (*Profiled, error) {
 		return nil, fmt.Errorf("minio: %w", err)
 	}
 
-	prod, err := kafka.NewProducer(config.KafkaBrokerList(cfg.KafkaBrokers), cfg.KafkaTopicUp, cfg.KafkaTopicDel, log)
+	prod, err := kafka.NewProducer(
+		config.KafkaBrokerList(cfg.Kafka.Brokers),
+		cfg.Kafka.TopicUpload,
+		cfg.Kafka.TopicDelete,
+		cfg.Kafka.MaxMessageBytes,
+		log,
+	)
 	if err != nil {
 		db.Close()
 		if shutdownErr := traceShutdown(context.Background()); shutdownErr != nil {
@@ -104,12 +111,12 @@ func NewProfiled(ctx context.Context) (*Profiled, error) {
 		DB:    db.Pool,
 		Minio: ports.Pinger(st),
 		KafkaPing: func() error {
-			return kafka.Ping(config.KafkaBrokerList(cfg.KafkaBrokers))
+			return kafka.Ping(config.KafkaBrokerList(cfg.Kafka.Brokers))
 		},
 	}
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           otelhttp.NewHandler(httpserver.NewRouter(httpserver.Deps{Log: log, Service: cfg.ServiceName, Avatar: avh, Health: health}), "http.server"),
+		Handler:           otelhttp.NewHandler(httpserver.NewRouter(httpserver.Deps{Log: log, Service: cfg.Telemetry.ServiceName, Avatar: avh, Health: health}), "http.server"),
 		ReadHeaderTimeout: httpReadHeaderTimeout,
 		ReadTimeout:       httpReadWriteTimeout,
 		WriteTimeout:      httpReadWriteTimeout,
@@ -141,7 +148,7 @@ func (a *Profiled) Run(ctx context.Context) error {
 				return
 			case <-ticker.C:
 				stats := a.db.Pool.Stat()
-				observability.ObserveDBPool(a.cfg.ServiceName, stats.TotalConns(), stats.IdleConns(), stats.AcquiredConns())
+				observability.ObserveDBPool(a.cfg.Telemetry.ServiceName, stats.TotalConns(), stats.IdleConns(), stats.AcquiredConns())
 			}
 		}
 	}()
@@ -156,7 +163,7 @@ func (a *Profiled) Run(ctx context.Context) error {
 	<-ctx.Done()
 	a.log.Info("shutting down profiled")
 	stats := a.db.Pool.Stat()
-	observability.ObserveDBPool(a.cfg.ServiceName, stats.TotalConns(), stats.IdleConns(), stats.AcquiredConns())
+	observability.ObserveDBPool(a.cfg.Telemetry.ServiceName, stats.TotalConns(), stats.IdleConns(), stats.AcquiredConns())
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), a.cfg.ShutdownTimeout)
 	defer cancel()

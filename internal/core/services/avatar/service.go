@@ -60,38 +60,38 @@ func (s *Service) Upload(ctx context.Context, userID string, fileName string, co
 		attribute.Int64("file.size", size),
 	)
 	if userID == "" {
-		observability.ObserveUpload("profiled", "error", userID, time.Since(started), 0)
+		observability.ObserveUpload("profiled", "error", time.Since(started), 0)
 		return nil, domain.ErrMissingUserID
 	}
 	if size > s.maxBytes {
-		observability.ObserveUpload("profiled", "error", userID, time.Since(started), 0)
+		observability.ObserveUpload("profiled", "error", time.Since(started), 0)
 		return nil, domain.ErrFileTooLarge
 	}
 	if size <= 0 {
-		observability.ObserveUpload("profiled", "error", userID, time.Since(started), 0)
+		observability.ObserveUpload("profiled", "error", time.Since(started), 0)
 		return nil, domain.ErrMissingFile
 	}
 	prefix, rest, err := imageutil.ReadSniffPrefix(r, imageSniffPrefixBytes)
 	if err != nil {
 		span.RecordError(err)
-		observability.ObserveUpload("profiled", "error", userID, time.Since(started), 0)
+		observability.ObserveUpload("profiled", "error", time.Since(started), 0)
 		return nil, err
 	}
 	mime, err := imageutil.NormalizeContentType(contentType, prefix)
 	if err != nil {
 		span.RecordError(err)
-		observability.ObserveUpload("profiled", "error", userID, time.Since(started), 0)
+		observability.ObserveUpload("profiled", "error", time.Since(started), 0)
 		return nil, domain.ErrInvalidFormat
 	}
 	lr := io.LimitReader(rest, s.maxBytes+1)
 	data, err := io.ReadAll(lr)
 	if err != nil {
 		span.RecordError(err)
-		observability.ObserveUpload("profiled", "error", userID, time.Since(started), 0)
+		observability.ObserveUpload("profiled", "error", time.Since(started), 0)
 		return nil, err
 	}
 	if int64(len(data)) > s.maxBytes {
-		observability.ObserveUpload("profiled", "error", userID, time.Since(started), 0)
+		observability.ObserveUpload("profiled", "error", time.Since(started), 0)
 		return nil, domain.ErrFileTooLarge
 	}
 	id := uuid.New()
@@ -112,13 +112,13 @@ func (s *Service) Upload(ctx context.Context, userID string, fileName string, co
 	}
 	if err := s.storage.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mime); err != nil {
 		span.RecordError(err)
-		observability.ObserveUpload("profiled", "error", userID, time.Since(started), 0)
+		observability.ObserveUpload("profiled", "error", time.Since(started), 0)
 		return nil, err
 	}
 	a.UploadStatus = domain.UploadStatusCompleted
 	if err := s.repo.Create(ctx, a); err != nil {
 		span.RecordError(err)
-		observability.ObserveUpload("profiled", "error", userID, time.Since(started), 0)
+		observability.ObserveUpload("profiled", "error", time.Since(started), 0)
 		return nil, err
 	}
 	if err := s.pub.PublishUpload(ctx, ports.AvatarUploadEvent{
@@ -127,10 +127,10 @@ func (s *Service) Upload(ctx context.Context, userID string, fileName string, co
 		S3Key:    key,
 	}); err != nil {
 		span.RecordError(err)
-		observability.ObserveUpload("profiled", "error", userID, time.Since(started), 0)
+		observability.ObserveUpload("profiled", "error", time.Since(started), 0)
 		return nil, fmt.Errorf("publish upload: %w", err)
 	}
-	observability.ObserveUpload("profiled", "success", userID, time.Since(started), int64(len(data)))
+	observability.ObserveUpload("profiled", "success", time.Since(started), int64(len(data)))
 	return a, nil
 }
 
@@ -315,22 +315,22 @@ func (s *Service) deleteOwned(ctx context.Context, a *domain.Avatar, userID stri
 	ok, err := s.repo.SoftDelete(ctx, a.ID, userID)
 	if err != nil {
 		span.RecordError(err)
-		observability.ObserveDelete("profiled", "error", userID)
+		observability.ObserveDelete("profiled", "error")
 		return err
 	}
 	if !ok {
 		span.RecordError(domain.ErrNotFound)
-		observability.ObserveDelete("profiled", "error", userID)
+		observability.ObserveDelete("profiled", "error")
 		return domain.ErrNotFound
 	}
-	observability.ObserveDeleteStorage("profiled", userID, a.SizeBytes)
+	observability.ObserveDeleteStorage("profiled", a.SizeBytes)
 	err = s.pub.PublishDelete(ctx, ports.AvatarDeleteEvent{AvatarID: a.ID.String(), S3Keys: keys})
 	if err != nil {
 		span.RecordError(err)
-		observability.ObserveDelete("profiled", "error", userID)
+		observability.ObserveDelete("profiled", "error")
 		return err
 	}
-	observability.ObserveDelete("profiled", "success", userID)
+	observability.ObserveDelete("profiled", "success")
 	return err
 }
 

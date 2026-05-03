@@ -10,6 +10,6 @@ import (
 
 func TestNewProducerFails(t *testing.T) {
 	t.Parallel()
-	_, err := NewProducer([]string{}, "a", "b", slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	_, err := NewProducer([]string{}, "a", "b", 1<<20, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	require.Error(t, err)
 }
