@@ -32,6 +32,11 @@ func (b *kafkaBridge) OnDelete(ctx context.Context, payload []byte) error {
 
 var _ ports.GroupHandler = (*kafkaBridge)(nil)
 
+const (
+	avatardDBPoolObserveInterval  = 10 * time.Second
+	avatardMetricsShutdownTimeout = 5 * time.Second
+)
+
 // Avatard воркер обработки Kafka (миниатюры, удаление в S3).
 type Avatard struct {
 	cfg           *config.Worker
@@ -128,7 +133,7 @@ func (a *Avatard) Run(ctx context.Context) error {
 	br := &kafkaBridge{p: a.proc}
 
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(avatardDBPoolObserveInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -171,7 +176,7 @@ func runMetricsServer(ctx context.Context, addr string, log *slog.Logger) error 
 	srv := &http.Server{Addr: addr, Handler: mux}
 	go func() {
 		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), avatardMetricsShutdownTimeout)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			log.Error("metrics server shutdown", "error", err)

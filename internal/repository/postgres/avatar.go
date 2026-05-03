@@ -139,10 +139,10 @@ func (r *AvatarRepository) ListByUserID(ctx context.Context, userID string) ([]d
 	defer rows.Close()
 	out := make([]domain.Avatar, 0)
 	for rows.Next() {
-		a, err := scanOne(rows)
-		if err != nil {
-			span.RecordError(err)
-			return nil, err
+		a, scanErr := scanOne(rows)
+		if scanErr != nil {
+			span.RecordError(scanErr)
+			return nil, scanErr
 		}
 		out = append(out, *a)
 	}

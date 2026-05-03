@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	httpReadHeaderTimeout = 10 * time.Second
-	httpReadWriteTimeout  = 60 * time.Second
+	httpReadHeaderTimeout         = 10 * time.Second
+	httpReadWriteTimeout          = 60 * time.Second
+	profiledDBPoolObserveInterval = 10 * time.Second
 )
 
 // Profiled HTTP-сервис profiled (REST API и health).
@@ -140,7 +141,7 @@ func (a *Profiled) Logger() *slog.Logger {
 // Run слушает сигналы, останавливает HTTP и закрывает ресурсы.
 func (a *Profiled) Run(ctx context.Context) error {
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(profiledDBPoolObserveInterval)
 		defer ticker.Stop()
 		for {
 			select {
