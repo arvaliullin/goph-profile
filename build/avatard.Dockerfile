@@ -5,9 +5,8 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /avatard ./cmd/avatard
 
-FROM alpine:3.19
-RUN apk add --no-cache ca-certificates tzdata wget
+FROM gcr.io/distroless/static-debian12
 WORKDIR /app
-COPY --from=builder /avatard .
+COPY --from=builder /avatard /avatard
 COPY migrations ./migrations
-CMD ["./avatard"]
+CMD ["/avatard"]

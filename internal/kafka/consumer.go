@@ -3,12 +3,15 @@ package kafka
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/arvaliullin/goph-profile/internal/core/ports"
+	"github.com/arvaliullin/goph-profile/internal/observability"
 	"github.com/arvaliullin/goph-profile/internal/pkg/retry"
-	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // ErrUnknownTopic возвращается из dispatchMessage для неизвестного топика.
@@ -28,13 +31,14 @@ var consumerHandlerRetry = retry.NewStrategy(
 type claimHandler struct {
 	cfg     Config
 	handler ports.GroupHandler
-	log     zerolog.Logger
+	log     *slog.Logger
 }
 
 // Config имена топиков для маршрутизации.
 type Config struct {
-	TopicUpload string
-	TopicDelete string
+	TopicUpload     string
+	TopicDelete     string
+	MaxMessageBytes int
 }
 
 func (h *claimHandler) Setup(sarama.ConsumerGroupSession) error   { return nil }
@@ -42,19 +46,31 @@ func (h *claimHandler) Cleanup(sarama.ConsumerGroupSession) error { return nil }
 
 func (h *claimHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for msg := range claim.Messages() {
-		ctx := sess.Context()
+		ctx := otel.GetTextMapPropagator().Extract(sess.Context(), newConsumerHeaderCarrier(msg))
+		ctx, span := otel.Tracer("kafka-consumer").Start(ctx, "kafka.consume")
+		span.SetAttributes(
+			attribute.String("messaging.system", "kafka"),
+			attribute.String("messaging.destination", msg.Topic),
+			attribute.Int64("messaging.kafka.offset", msg.Offset),
+			attribute.Int64("messaging.kafka.partition", int64(msg.Partition)),
+		)
 		err := consumerHandlerRetry.DoWithRetry(ctx, func(ctx context.Context) error {
 			return dispatchMessage(msg.Topic, h.cfg, h.handler, ctx, msg.Value)
 		})
 		if err != nil {
+			span.RecordError(err)
+			observability.ObserveKafkaConsume("avatard", msg.Topic, "error")
+			span.End()
 			return err
 		}
 		sess.MarkMessage(msg, "")
-		h.log.Info().
-			Str("topic", msg.Topic).
-			Int32("partition", msg.Partition).
-			Int64("offset", msg.Offset).
-			Msg("kafka consumer offset committed")
+		observability.ObserveKafkaConsume("avatard", msg.Topic, "success")
+		observability.LoggerWithTrace(ctx, h.log).InfoContext(ctx, "kafka consumer offset committed",
+			"topic", msg.Topic,
+			"partition", msg.Partition,
+			"offset", msg.Offset,
+		)
+		span.End()
 	}
 	return nil
 }
@@ -71,11 +87,12 @@ func dispatchMessage(topic string, cfg Config, gh ports.GroupHandler, ctx contex
 }
 
 // RunConsumerGroup запускает блокирующий цикл чтения до отмены ctx.
-func RunConsumerGroup(ctx context.Context, brokers []string, group string, cfg Config, gh ports.GroupHandler, log zerolog.Logger) error {
+func RunConsumerGroup(ctx context.Context, brokers []string, group string, cfg Config, gh ports.GroupHandler, log *slog.Logger) error {
 	sconfig := sarama.NewConfig()
 	sconfig.Version = sarama.V2_8_0_0
 	sconfig.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRoundRobin()}
 	sconfig.Consumer.Offsets.Initial = sarama.OffsetOldest
+	sconfig.Consumer.Fetch.Max = int32(cfg.MaxMessageBytes)
 
 	g, err := sarama.NewConsumerGroup(brokers, group, sconfig)
 	if err != nil {

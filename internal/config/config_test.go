@@ -20,5 +20,7 @@ func TestLoadWorker_MinimalEnv(t *testing.T) {
 	t.Setenv("KAFKA_BROKERS", "localhost:9092")
 	w, err := LoadWorker()
 	require.NoError(t, err)
-	require.Equal(t, "avatars.upload", w.KafkaTopicUp)
+	require.Equal(t, "avatars.upload", w.Kafka.TopicUpload)
+	require.Equal(t, "avatard", w.Telemetry.ServiceName)
+	require.Equal(t, 1<<20, w.Kafka.MaxMessageBytes)
 }

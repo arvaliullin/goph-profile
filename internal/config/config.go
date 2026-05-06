@@ -7,38 +7,62 @@ import (
 	"github.com/caarlos0/env/v11"
 )
 
-const defaultMaxUpload = 10 << 20 // 10 МиБ
+const (
+	defaultMaxUpload            = 10 << 20 // 10 МиБ
+	defaultKafkaMaxMessageBytes = 1 << 20
+)
+
+type minioConfig struct {
+	Endpoint  string `env:"MINIO_ENDPOINT,required"`
+	AccessKey string `env:"MINIO_ACCESS_KEY,required"`
+	SecretKey string `env:"MINIO_SECRET_KEY,required"`
+	Secure    bool   `env:"MINIO_SECURE" envDefault:"false"`
+	Bucket    string `env:"MINIO_BUCKET" envDefault:"avatars"`
+}
+
+type kafkaConfig struct {
+	Brokers         string `env:"KAFKA_BROKERS,required"`
+	TopicUpload     string `env:"KAFKA_TOPIC_UPLOAD" envDefault:"avatars.upload"`
+	TopicDelete     string `env:"KAFKA_TOPIC_DELETE" envDefault:"avatars.delete"`
+	MaxMessageBytes int    `env:"KAFKA_MAX_MESSAGE_BYTES" envDefault:"1048576"`
+}
+
+type workerKafkaConfig struct {
+	Brokers         string `env:"KAFKA_BROKERS,required"`
+	TopicUpload     string `env:"KAFKA_TOPIC_UPLOAD" envDefault:"avatars.upload"`
+	TopicDelete     string `env:"KAFKA_TOPIC_DELETE" envDefault:"avatars.delete"`
+	Group           string `env:"KAFKA_GROUP" envDefault:"avatars-worker"`
+	MaxMessageBytes int    `env:"KAFKA_MAX_MESSAGE_BYTES" envDefault:"1048576"`
+}
+
+type telemetryConfig struct {
+	OTLPEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT" envDefault:""`
+	Environment  string `env:"OTEL_ENVIRONMENT" envDefault:"local"`
+	ServiceName  string `env:"OTEL_SERVICE_NAME" envDefault:""`
+}
 
 // Server настройки HTTP и интеграций для profiled.
 type Server struct {
 	HTTPAddr        string        `env:"HTTP_ADDR" envDefault:":8080"`
 	DatabaseURI     string        `env:"DATABASE_URI,required"`
-	MinioEndpoint   string        `env:"MINIO_ENDPOINT,required"`
-	MinioAccessKey  string        `env:"MINIO_ACCESS_KEY,required"`
-	MinioSecretKey  string        `env:"MINIO_SECRET_KEY,required"`
-	MinioSecure     bool          `env:"MINIO_SECURE" envDefault:"false"`
-	MinioBucket     string        `env:"MINIO_BUCKET" envDefault:"avatars"`
-	KafkaBrokers    string        `env:"KAFKA_BROKERS,required"`
-	KafkaTopicUp    string        `env:"KAFKA_TOPIC_UPLOAD" envDefault:"avatars.upload"`
-	KafkaTopicDel   string        `env:"KAFKA_TOPIC_DELETE" envDefault:"avatars.delete"`
 	MaxUploadBytes  int64         `env:"MAX_UPLOAD_BYTES" envDefault:"10485760"`
 	ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"10s"`
 	PublicBaseURL   string        `env:"PUBLIC_BASE_URL" envDefault:""`
+	LogLevel        string        `env:"LOG_LEVEL" envDefault:"info"`
+	Minio           minioConfig
+	Kafka           kafkaConfig
+	Telemetry       telemetryConfig
 }
 
 // Worker настройки для avatard.
 type Worker struct {
 	DatabaseURI     string        `env:"DATABASE_URI,required"`
-	MinioEndpoint   string        `env:"MINIO_ENDPOINT,required"`
-	MinioAccessKey  string        `env:"MINIO_ACCESS_KEY,required"`
-	MinioSecretKey  string        `env:"MINIO_SECRET_KEY,required"`
-	MinioSecure     bool          `env:"MINIO_SECURE" envDefault:"false"`
-	MinioBucket     string        `env:"MINIO_BUCKET" envDefault:"avatars"`
-	KafkaBrokers    string        `env:"KAFKA_BROKERS,required"`
-	KafkaTopicUp    string        `env:"KAFKA_TOPIC_UPLOAD" envDefault:"avatars.upload"`
-	KafkaTopicDel   string        `env:"KAFKA_TOPIC_DELETE" envDefault:"avatars.delete"`
-	KafkaGroup      string        `env:"KAFKA_GROUP" envDefault:"avatars-worker"`
 	ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"30s"`
+	MetricsAddr     string        `env:"METRICS_ADDR" envDefault:":9091"`
+	LogLevel        string        `env:"LOG_LEVEL" envDefault:"info"`
+	Minio           minioConfig
+	Kafka           workerKafkaConfig
+	Telemetry       telemetryConfig
 }
 
 // LoadServer читает переменные окружения в Server.
@@ -50,6 +74,12 @@ func LoadServer() (*Server, error) {
 	if c.MaxUploadBytes <= 0 {
 		c.MaxUploadBytes = defaultMaxUpload
 	}
+	if c.Kafka.MaxMessageBytes <= 0 {
+		c.Kafka.MaxMessageBytes = defaultKafkaMaxMessageBytes
+	}
+	if c.Telemetry.ServiceName == "" {
+		c.Telemetry.ServiceName = "profiled"
+	}
 	return &c, nil
 }
 
@@ -58,6 +88,12 @@ func LoadWorker() (*Worker, error) {
 	var c Worker
 	if err := env.Parse(&c); err != nil {
 		return nil, err
+	}
+	if c.Kafka.MaxMessageBytes <= 0 {
+		c.Kafka.MaxMessageBytes = defaultKafkaMaxMessageBytes
+	}
+	if c.Telemetry.ServiceName == "" {
+		c.Telemetry.ServiceName = "avatard"
 	}
 	return &c, nil
 }

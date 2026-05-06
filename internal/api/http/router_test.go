@@ -1,13 +1,14 @@
 package httpserver
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/arvaliullin/goph-profile/internal/api/http/handlers"
 	"github.com/arvaliullin/goph-profile/internal/core/ports/mocks"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -22,10 +23,10 @@ func testAvatarHandler(t *testing.T) *handlers.AvatarHTTP {
 
 func TestNewRouterHealth(t *testing.T) {
 	t.Parallel()
-	log := zerolog.Nop()
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	h := &handlers.Health{}
 	av := testAvatarHandler(t)
-	r := NewRouter(Deps{Log: log, Health: h, Avatar: av})
+	r := NewRouter(Deps{Log: log, Service: "test", Health: h, Avatar: av})
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -34,10 +35,10 @@ func TestNewRouterHealth(t *testing.T) {
 
 func TestNewRouterSwaggerUI(t *testing.T) {
 	t.Parallel()
-	log := zerolog.Nop()
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	h := &handlers.Health{}
 	av := testAvatarHandler(t)
-	r := NewRouter(Deps{Log: log, Health: h, Avatar: av})
+	r := NewRouter(Deps{Log: log, Service: "test", Health: h, Avatar: av})
 	req := httptest.NewRequest(http.MethodGet, "/swagger/index.html", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)

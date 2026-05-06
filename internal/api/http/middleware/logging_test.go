@@ -1,18 +1,19 @@
 package middleware
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRequestLogger(t *testing.T) {
 	t.Parallel()
-	log := zerolog.Nop()
-	h := RequestLogger(log)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	log := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	h := RequestLogger(log, "test-service")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
 	}))
 	rec := httptest.NewRecorder()

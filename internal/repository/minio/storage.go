@@ -7,6 +7,8 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // Storage реализует ports.ObjectStorage для MinIO/S3.
@@ -41,14 +43,31 @@ func New(ctx context.Context, endpoint, accessKey, secretKey string, secure bool
 
 // Put загружает объект.
 func (s *Storage) Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) error {
+	ctx, span := otel.Tracer("minio-storage").Start(ctx, "s3.put")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("s3.bucket", s.bucket),
+		attribute.String("s3.key", key),
+		attribute.Int64("s3.size", size),
+	)
 	_, err := s.client.PutObject(ctx, s.bucket, key, r, size, minio.PutObjectOptions{ContentType: contentType})
+	if err != nil {
+		span.RecordError(err)
+	}
 	return err
 }
 
 // Get скачивает объект.
 func (s *Storage) Get(ctx context.Context, key string) (io.ReadCloser, error) {
+	ctx, span := otel.Tracer("minio-storage").Start(ctx, "s3.get")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("s3.bucket", s.bucket),
+		attribute.String("s3.key", key),
+	)
 	o, err := s.client.GetObject(ctx, s.bucket, key, minio.GetObjectOptions{})
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 	return o, nil
@@ -56,7 +75,17 @@ func (s *Storage) Get(ctx context.Context, key string) (io.ReadCloser, error) {
 
 // Delete удаляет один объект.
 func (s *Storage) Delete(ctx context.Context, key string) error {
-	return s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
+	ctx, span := otel.Tracer("minio-storage").Start(ctx, "s3.delete")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("s3.bucket", s.bucket),
+		attribute.String("s3.key", key),
+	)
+	err := s.client.RemoveObject(ctx, s.bucket, key, minio.RemoveObjectOptions{})
+	if err != nil {
+		span.RecordError(err)
+	}
+	return err
 }
 
 func isNoSuchKeyOrBucket(err error) bool {
@@ -70,6 +99,12 @@ func isNoSuchKeyOrBucket(err error) bool {
 // DeleteMany удаляет объекты по возможности (best-effort).
 // Повторное удаление уже отсутствующих ключей не считается ошибкой (идемпотентность для worker).
 func (s *Storage) DeleteMany(ctx context.Context, keys []string) error {
+	ctx, span := otel.Tracer("minio-storage").Start(ctx, "s3.delete_many")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("s3.bucket", s.bucket),
+		attribute.Int("s3.keys_count", len(keys)),
+	)
 	var first error
 	for _, k := range keys {
 		if k == "" {
@@ -84,11 +119,20 @@ func (s *Storage) DeleteMany(ctx context.Context, keys []string) error {
 			}
 		}
 	}
+	if first != nil {
+		span.RecordError(first)
+	}
 	return first
 }
 
 // Ping проверяет доступ к бакету.
 func (s *Storage) Ping(ctx context.Context) error {
+	ctx, span := otel.Tracer("minio-storage").Start(ctx, "s3.ping")
+	defer span.End()
+	span.SetAttributes(attribute.String("s3.bucket", s.bucket))
 	_, err := s.client.BucketExists(ctx, s.bucket)
+	if err != nil {
+		span.RecordError(err)
+	}
 	return err
 }
