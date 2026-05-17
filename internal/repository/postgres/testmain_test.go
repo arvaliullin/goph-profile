@@ -13,6 +13,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// chdirModuleRoot переходит в корень модуля по цепочке родительских каталогов.
 func chdirModuleRoot() {
 	wd, err := os.Getwd()
 	if err != nil {

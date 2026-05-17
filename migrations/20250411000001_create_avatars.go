@@ -11,6 +11,7 @@ func init() {
 	goose.AddMigrationContext(upCreateAvatars, downCreateAvatars)
 }
 
+// upCreateAvatars создаёт таблицу avatars и индексы.
 func upCreateAvatars(ctx context.Context, tx *sql.Tx) error {
 	const q = `
 CREATE TABLE IF NOT EXISTS avatars (
@@ -37,6 +38,7 @@ CREATE INDEX IF NOT EXISTS idx_avatars_status ON avatars (upload_status, process
 	return err
 }
 
+// downCreateAvatars удаляет таблицу avatars.
 func downCreateAvatars(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS avatars`)
 	return err

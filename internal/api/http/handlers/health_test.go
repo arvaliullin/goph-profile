@@ -21,6 +21,17 @@ func TestHealth_Handle(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 }
 
+func TestHealth_UnhealthyKafka(t *testing.T) {
+	t.Parallel()
+	h := &Health{
+		KafkaPing: func() error { return context.DeadlineExceeded },
+	}
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	h.Handle(rec, req)
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+}
+
 func TestHealth_WithDB(t *testing.T) {
 	t.Parallel()
 	h := &Health{DB: (*pgxpool.Pool)(nil), Minio: nil, KafkaPing: func() error { return nil }}

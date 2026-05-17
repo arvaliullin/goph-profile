@@ -60,6 +60,7 @@ SELECT id, user_id, file_name, mime_type, size_bytes, s3_key, thumbnail_s3_keys,
 FROM avatars
 `
 
+// scanOne читает одну строку avatars в доменную модель.
 func scanOne(row pgx.Row) (*domain.Avatar, error) {
 	var (
 		a         domain.Avatar

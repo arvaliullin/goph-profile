@@ -1,0 +1,9 @@
+{{- if and .Values.rbac.create .Values.serviceAccount.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "goph-profile.fullname" . }}
+  labels:
+    {{- include "goph-profile.labels" . | nindent 4 }}
+rules: []
+{{- end }}

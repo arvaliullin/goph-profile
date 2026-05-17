@@ -13,7 +13,7 @@ import (
 
 // @title GophProfile API
 // @version 1.0
-// @description REST API сервиса профилей и аватаров (загрузка, выдача изображений и метаданных).
+// @description HTTP API сервиса профилей и аватаров: загрузка, выдача изображений и метаданных.
 // @host localhost:8080
 // @BasePath /
 // @securityDefinitions.apikey UserIDAuth

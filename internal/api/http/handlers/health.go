@@ -12,19 +12,20 @@ import (
 
 const healthCheckTimeout = 3 * time.Second
 
-// Health сводная проверка зависимостей.
+// Health обработчик GET /health.
 type Health struct {
 	DB        *pgxpool.Pool
 	Minio     ports.Pinger
 	KafkaPing func() error
 }
 
-// Handle сводная проверка зависимостей (PostgreSQL, MinIO, Kafka).
-// @Summary Health check
-// @Description Статус подключения к postgres, minio и Kafka.
+// Handle проверяет PostgreSQL, MinIO и Kafka.
+// @Summary Проверка готовности
+// @Description Статус подключения к postgres, minio и Kafka. HTTP 503, если хотя бы одна зависимость недоступна.
 // @Tags health
 // @Produce json
 // @Success 200 {object} dto.HealthResponse
+// @Failure 503 {object} dto.HealthResponse
 // @Router /health [get]
 func (h *Health) Handle(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), healthCheckTimeout)
@@ -49,5 +50,9 @@ func (h *Health) Handle(w http.ResponseWriter, r *http.Request) {
 			out.Kafka = dto.ComponentStatus{OK: false, Error: err.Error()}
 		}
 	}
-	writeJSON(w, http.StatusOK, out)
+	status := http.StatusOK
+	if !out.Postgres.OK || !out.Minio.OK || !out.Kafka.OK {
+		status = http.StatusServiceUnavailable
+	}
+	writeJSON(w, status, out)
 }

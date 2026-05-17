@@ -15,6 +15,7 @@ linters:
     - ineffassign
     - misspell
     - mnd
+    - modernize
     - noctx
     - rowserrcheck
     - sqlclosecheck

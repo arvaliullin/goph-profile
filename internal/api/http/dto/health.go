@@ -1,6 +1,6 @@
 package dto
 
-// ComponentStatus состояние одной зависимости в health check.
+// ComponentStatus состояние одной зависимости в сводной проверке готовности.
 type ComponentStatus struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`

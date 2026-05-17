@@ -28,6 +28,7 @@ var consumerHandlerRetry = retry.NewStrategy(
 	isConsumerHandlerRetryable,
 )
 
+// claimHandler маршрутизирует сообщения consumer group по топикам.
 type claimHandler struct {
 	cfg     Config
 	handler ports.GroupHandler
@@ -75,6 +76,7 @@ func (h *claimHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sara
 	return nil
 }
 
+// dispatchMessage вызывает обработчик по имени топика.
 func dispatchMessage(topic string, cfg Config, gh ports.GroupHandler, ctx context.Context, value []byte) error {
 	switch topic {
 	case cfg.TopicUpload:

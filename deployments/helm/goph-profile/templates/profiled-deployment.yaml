@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "goph-profile.componentName" (dict "ctx" . "name" "profiled") }}
+  labels:
+    {{- include "goph-profile.componentLabels" (dict "ctx" . "name" "profiled") | nindent 4 }}
+spec:
+  replicas: {{ .Values.profiled.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "goph-profile.componentSelectorLabels" (dict "ctx" . "name" "profiled") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "goph-profile.componentSelectorLabels" (dict "ctx" . "name" "profiled") | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+{{- include "goph-profile.waitForDepsInitContainers" . | nindent 6 }}
+      serviceAccountName: {{ include "goph-profile.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.profiled.shutdown.terminationGracePeriodSeconds }}
+      containers:
+        - name: profiled
+          image: "{{ .Values.profiled.image.repository }}:{{ .Values.profiled.image.tag }}"
+          imagePullPolicy: {{ .Values.profiled.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.profiled.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: SHUTDOWN_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "goph-profile.fullname" . }}-config
+                  key: PROFILED_SHUTDOWN_TIMEOUT
+          envFrom:
+            - configMapRef:
+                name: {{ include "goph-profile.fullname" . }}-config
+            - secretRef:
+                name: {{ include "goph-profile.fullname" . }}-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.profiled.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.profiled.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.profiled.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.profiled.livenessProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.profiled.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.profiled.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.profiled.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.profiled.readinessProbe.failureThreshold }}
+          resources:
+            {{- toYaml .Values.profiled.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

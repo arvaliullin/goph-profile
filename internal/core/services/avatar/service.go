@@ -45,6 +45,7 @@ func New(repo ports.AvatarRepository, storage ports.ObjectStorage, pub ports.Eve
 	return &Service{repo: repo, storage: storage, pub: pub, clock: clock, maxBytes: maxBytes}
 }
 
+// objectKeyOriginal формирует ключ оригинала в объектном хранилище.
 func objectKeyOriginal(userID string, id uuid.UUID) string {
 	return fmt.Sprintf("avatars/%s/%s/original", userID, id.String())
 }
@@ -201,6 +202,7 @@ func (s *Service) GetImage(ctx context.Context, id uuid.UUID, size, format strin
 	return io.NopCloser(bytes.NewReader(b)), fmime, hex.EncodeToString(etag2[:]), nil
 }
 
+// thumbMimeForFormat выбирает MIME превью с учётом запрошенного формата.
 func thumbMimeForFormat(format string, original string) string {
 	if format == "" {
 		return original
@@ -212,6 +214,7 @@ func thumbMimeForFormat(format string, original string) string {
 	return m
 }
 
+// etagForKey возвращает ETag по ключу объекта.
 func etagForKey(key string) string {
 	sum := sha256.Sum256([]byte(key))
 	return hex.EncodeToString(sum[:])

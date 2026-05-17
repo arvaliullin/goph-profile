@@ -435,17 +435,23 @@ const docTemplate = `{
         },
         "/health": {
             "get": {
-                "description": "Статус подключения к postgres, minio и Kafka.",
+                "description": "Статус подключения к postgres, minio и Kafka. HTTP 503, если хотя бы одна зависимость недоступна.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "health"
                 ],
-                "summary": "Health check",
+                "summary": "Проверка готовности",
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.HealthResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.HealthResponse"
                         }
@@ -575,7 +581,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "GophProfile API",
-	Description:      "REST API сервиса профилей и аватаров (загрузка, выдача изображений и метаданных).",
+	Description:      "HTTP API сервиса профилей и аватаров: загрузка, выдача изображений и метаданных.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

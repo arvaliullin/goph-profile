@@ -70,8 +70,8 @@ definitions:
 host: localhost:8080
 info:
   contact: {}
-  description: REST API сервиса профилей и аватаров (загрузка, выдача изображений
-    и метаданных).
+  description: 'HTTP API сервиса профилей и аватаров: загрузка, выдача изображений
+    и метаданных.'
   title: GophProfile API
   version: "1.0"
 paths:
@@ -351,7 +351,8 @@ paths:
       - avatars
   /health:
     get:
-      description: Статус подключения к postgres, minio и Kafka.
+      description: Статус подключения к postgres, minio и Kafka. HTTP 503, если хотя
+        бы одна зависимость недоступна.
       produces:
       - application/json
       responses:
@@ -359,7 +360,11 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.HealthResponse'
-      summary: Health check
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/github_com_arvaliullin_goph-profile_internal_api_http_dto.HealthResponse'
+      summary: Проверка готовности
       tags:
       - health
 securityDefinitions:

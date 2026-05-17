@@ -1,0 +1,32 @@
+{{- if .Values.migrationHook.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "goph-profile.fullname" . }}-migrate
+  labels:
+    {{- include "goph-profile.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-timeout": "{{ .Values.migrationHook.timeoutSeconds }}"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrationHook.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.migrationHook.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "goph-profile.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: "{{ .Values.profiled.image.repository }}:{{ .Values.profiled.image.tag }}"
+          imagePullPolicy: {{ .Values.profiled.image.pullPolicy }}
+          command: ["./migrate"]
+          env:
+            - name: DATABASE_URI
+              value: {{ .Values.secretEnv.databaseURI | quote }}
+{{- end }}
