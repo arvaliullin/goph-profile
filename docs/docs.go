@@ -435,7 +435,7 @@ const docTemplate = `{
         },
         "/health": {
             "get": {
-                "description": "Статус подключения к postgres, minio и Kafka. HTTP 503, если хотя бы одна зависимость недоступна.",
+                "description": "Статус подключения к postgres, minio и Kafka.",
                 "produces": [
                     "application/json"
                 ],

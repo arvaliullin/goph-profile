@@ -21,7 +21,7 @@ type Health struct {
 
 // Handle проверяет PostgreSQL, MinIO и Kafka.
 // @Summary Проверка готовности
-// @Description Статус подключения к postgres, minio и Kafka. HTTP 503, если хотя бы одна зависимость недоступна.
+// @Description Статус подключения к postgres, minio и Kafka.
 // @Tags health
 // @Produce json
 // @Success 200 {object} dto.HealthResponse

@@ -9,17 +9,6 @@
 
 ## Архитектура
 
-```mermaid
-flowchart LR
-  Client[Browser_UI] --> profiled
-  profiled --> Postgres[(PostgreSQL)]
-  profiled --> MinIO[(MinIO)]
-  profiled --> Kafka[Kafka]
-  Kafka --> avatard
-  avatard --> MinIO
-  avatard --> Postgres
-```
-
 | Компонент | Роль |
 | --- | --- |
 | `profiled` | HTTP API, загрузка, Swagger, `/health`, `/metrics` |
@@ -60,10 +49,10 @@ make k8s-assert-local
 | Проверка | `make k8s-status`, `make k8s-port-forward` | см. ниже |
 | Остановка | `make k8s-uninstall && make down-k8s-deps` | |
 
-После шага «Проверка»: Swagger и health через `make k8s-port-forward` - `http://127.0.0.1:8080/swagger/` и `http://127.0.0.1:8080/health`. Ingress: `http://goph-profile.local` (при необходимости запись в `/etc/hosts`). Логи: `make k8s-logs`.
+После шага "Проверка": Swagger и health через `make k8s-port-forward` - `http://127.0.0.1:8080/swagger/` и `http://127.0.0.1:8080/health`. Ingress: `http://goph-profile.local` (при необходимости запись в `/etc/hosts`). Логи: `make k8s-logs`.
 
-Чарт: `deployments/helm/goph-profile`, namespace: `goph-profile`. Rancher Desktop: `make k8s-upgrade HELM_VALUES=deployments/helm/goph-profile/values-rancher.yaml`. HPA и ServiceMonitor для локальной приёмки: `make helm-deploy-local HELM_VALUES=deployments/helm/goph-profile/values-local.yaml`.
+Чарт: `deployments/helm/goph-profile`, namespace: `goph-profile`. HPA и ServiceMonitor для локальной приёмки: `make helm-deploy-local HELM_VALUES=deployments/helm/goph-profile/values-local.yaml`.
 
-Если поды не в Ready: нет зависимостей или `connection refused` к БД - `make up-k8s-deps`; `ImagePullBackOff` - `make k8s-build-images` и снова `make k8s-upgrade`; проблемы Kafka или Rancher - пересоздать deps или overlay `values-rancher.yaml`.
+Если поды не в Ready: нет зависимостей или `connection refused` к БД - `make up-k8s-deps`; `ImagePullBackOff` - `make k8s-build-images` и снова `make k8s-upgrade`; проблемы Kafka - пересоздать deps.
 
-Секреты и env: `deployments/helm/goph-profile/values.yaml` (`secretEnv`, `envConfig`). Окружения: `values-dev.yaml`, `values-prod.yaml`, `values-local.yaml`, `values-rancher.yaml`.
+Секреты и env: `deployments/helm/goph-profile/values.yaml` (`secretEnv`, `envConfig`). Окружения: `values-dev.yaml`, `values-prod.yaml`, `values-local.yaml`.
