@@ -9,6 +9,8 @@
 
 ## Архитектура
 
+[Архитектура GophProfile](docs/dia/arch.png)
+
 | Компонент | Роль |
 | --- | --- |
 | `profiled` | HTTP API, загрузка, Swagger, `/health`, `/metrics` |
