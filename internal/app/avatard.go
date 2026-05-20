@@ -147,13 +147,11 @@ func (a *Avatard) Run(ctx context.Context) error {
 	}()
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := runMetricsServer(ctx, a.cfg.MetricsAddr, a.log); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			a.log.Error("metrics server", "error", err)
 		}
-	}()
+	})
 	a.log.Info("avatard starting consumer", "brokers", brokers)
 
 	err := kafka.RunConsumerGroup(ctx, brokers, a.cfg.Kafka.Group, kcfg, br, a.log)

@@ -2,33 +2,21 @@ package postgres
 
 import (
 	"context"
-	"net"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/arvaliullin/goph-profile/internal/core/domain"
+	"github.com/arvaliullin/goph-profile/internal/testhelpers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
-func dockerAvailable() bool {
-	for _, sock := range []string{"/var/run/docker.sock", os.ExpandEnv("$HOME/.docker/run/docker.sock")} {
-		conn, err := net.DialTimeout("unix", sock, 200*time.Millisecond)
-		if err == nil {
-			_ = conn.Close()
-			return true
-		}
-	}
-	return false
-}
-
 func TestAvatarRepository_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("docker")
 	}
-	if !dockerAvailable() {
+	if !testhelpers.DockerAvailable() {
 		t.Skip("docker is not available")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)

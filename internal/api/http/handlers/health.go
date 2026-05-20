@@ -30,29 +30,40 @@ type Health struct {
 func (h *Health) Handle(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), healthCheckTimeout)
 	defer cancel()
-	out := dto.HealthResponse{
-		Postgres: dto.ComponentStatus{OK: true},
-		Minio:    dto.ComponentStatus{OK: true},
-		Kafka:    dto.ComponentStatus{OK: true},
-	}
+	out := dto.HealthResponse{}
 	if h.DB != nil {
+		st := &dto.ComponentStatus{OK: true}
 		if err := h.DB.Ping(ctx); err != nil {
-			out.Postgres = dto.ComponentStatus{OK: false, Error: err.Error()}
+			st.OK = false
+			st.Error = err.Error()
 		}
+		out.Postgres = st
 	}
 	if h.Minio != nil {
+		st := &dto.ComponentStatus{OK: true}
 		if err := h.Minio.Ping(ctx); err != nil {
-			out.Minio = dto.ComponentStatus{OK: false, Error: err.Error()}
+			st.OK = false
+			st.Error = err.Error()
 		}
+		out.Minio = st
 	}
 	if h.KafkaPing != nil {
+		st := &dto.ComponentStatus{OK: true}
 		if err := h.KafkaPing(); err != nil {
-			out.Kafka = dto.ComponentStatus{OK: false, Error: err.Error()}
+			st.OK = false
+			st.Error = err.Error()
+		}
+		out.Kafka = st
+	}
+	writeJSON(w, healthHTTPStatus(out), out)
+}
+
+// healthHTTPStatus возвращает 503, если хотя бы одна проверенная зависимость недоступна.
+func healthHTTPStatus(out dto.HealthResponse) int {
+	for _, st := range []*dto.ComponentStatus{out.Postgres, out.Minio, out.Kafka} {
+		if st != nil && !st.OK {
+			return http.StatusServiceUnavailable
 		}
 	}
-	status := http.StatusOK
-	if !out.Postgres.OK || !out.Minio.OK || !out.Kafka.OK {
-		status = http.StatusServiceUnavailable
-	}
-	writeJSON(w, status, out)
+	return http.StatusOK
 }

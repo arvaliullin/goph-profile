@@ -8,7 +8,7 @@ type ComponentStatus struct {
 
 // HealthResponse ответ GET /health.
 type HealthResponse struct {
-	Postgres ComponentStatus `json:"postgres"`
-	Minio    ComponentStatus `json:"minio"`
-	Kafka    ComponentStatus `json:"kafka"`
+	Postgres *ComponentStatus `json:"postgres,omitempty"`
+	Minio    *ComponentStatus `json:"minio,omitempty"`
+	Kafka    *ComponentStatus `json:"kafka,omitempty"`
 }
