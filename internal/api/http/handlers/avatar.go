@@ -134,6 +134,8 @@ func (h *AvatarHTTP) mapErr(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, map[string]string{"error": "Avatar not found"})
 	case errors.Is(err, domain.ErrForbidden):
 		writeError(w, http.StatusForbidden, map[string]any{"error": "Forbidden", "details": "You can only delete your own avatars"})
+	case errors.Is(err, domain.ErrUnavailable):
+		writeError(w, http.StatusServiceUnavailable, map[string]string{"error": "service temporarily unavailable"})
 	default:
 		writeError(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 	}

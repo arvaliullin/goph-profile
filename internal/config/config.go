@@ -43,26 +43,30 @@ type telemetryConfig struct {
 
 // Server настройки HTTP и интеграций для profiled.
 type Server struct {
-	HTTPAddr        string        `env:"HTTP_ADDR" envDefault:":8080"`
-	DatabaseURI     string        `env:"DATABASE_URI,required"`
-	MaxUploadBytes  int64         `env:"MAX_UPLOAD_BYTES" envDefault:"10485760"`
-	ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"10s"`
-	PublicBaseURL   string        `env:"PUBLIC_BASE_URL" envDefault:""`
-	LogLevel        string        `env:"LOG_LEVEL" envDefault:"info"`
-	Minio           minioConfig
-	Kafka           kafkaConfig
-	Telemetry       telemetryConfig
+	HTTPAddr              string        `env:"HTTP_ADDR" envDefault:":8080"`
+	DatabaseURI           string        `env:"DATABASE_URI,required"`
+	MaxUploadBytes        int64         `env:"MAX_UPLOAD_BYTES" envDefault:"10485760"`
+	ShutdownTimeout       time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"10s"`
+	PublicBaseURL         string        `env:"PUBLIC_BASE_URL" envDefault:""`
+	LogLevel              string        `env:"LOG_LEVEL" envDefault:"info"`
+	CircuitBreakerEnabled bool          `env:"CIRCUIT_BREAKER_ENABLED" envDefault:"true"`
+	RateLimitRequests     int           `env:"RATE_LIMIT_REQUESTS" envDefault:"60"`
+	RateLimitWindow       time.Duration `env:"RATE_LIMIT_WINDOW" envDefault:"1m"`
+	Minio                 minioConfig
+	Kafka                 kafkaConfig
+	Telemetry             telemetryConfig
 }
 
 // Worker настройки для avatard.
 type Worker struct {
-	DatabaseURI     string        `env:"DATABASE_URI,required"`
-	ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"30s"`
-	MetricsAddr     string        `env:"METRICS_ADDR" envDefault:":9091"`
-	LogLevel        string        `env:"LOG_LEVEL" envDefault:"info"`
-	Minio           minioConfig
-	Kafka           workerKafkaConfig
-	Telemetry       telemetryConfig
+	DatabaseURI           string        `env:"DATABASE_URI,required"`
+	ShutdownTimeout       time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"30s"`
+	MetricsAddr           string        `env:"METRICS_ADDR" envDefault:":9091"`
+	LogLevel              string        `env:"LOG_LEVEL" envDefault:"info"`
+	CircuitBreakerEnabled bool          `env:"CIRCUIT_BREAKER_ENABLED" envDefault:"true"`
+	Minio                 minioConfig
+	Kafka                 workerKafkaConfig
+	Telemetry             telemetryConfig
 }
 
 // LoadServer читает переменные окружения в Server.

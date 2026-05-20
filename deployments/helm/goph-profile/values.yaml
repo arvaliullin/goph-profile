@@ -150,6 +150,9 @@ envConfig:
   workerKafkaGroup: "avatars-worker"
   shutdownTimeoutProfiled: "10s"
   shutdownTimeoutAvatard: "30s"
+  circuitBreakerEnabled: "true"
+  rateLimitRequests: "60"
+  rateLimitWindow: "1m"
 
 secretEnv:
   databaseURI: "postgres://avatars:avatars@host.docker.internal:5432/avatars?sslmode=disable"

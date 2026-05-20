@@ -14,6 +14,7 @@ import (
 	"github.com/arvaliullin/goph-profile/internal/core/services/avatar"
 	"github.com/arvaliullin/goph-profile/internal/kafka"
 	"github.com/arvaliullin/goph-profile/internal/observability"
+	"github.com/arvaliullin/goph-profile/internal/pkg/breaker"
 	"github.com/arvaliullin/goph-profile/internal/repository/minio"
 	"github.com/arvaliullin/goph-profile/internal/repository/postgres"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -104,8 +105,15 @@ func NewProfiled(ctx context.Context) (*Profiled, error) {
 		return nil, fmt.Errorf("kafka producer: %w", err)
 	}
 
-	repo := postgres.NewAvatarRepository(db.Pool)
-	svc := avatar.New(repo, st, prod, nil, cfg.MaxUploadBytes)
+	var repo ports.AvatarRepository = postgres.NewAvatarRepository(db.Pool)
+	storage := ports.ObjectStorage(st)
+	pub := ports.EventPublisher(prod)
+	if cfg.CircuitBreakerEnabled {
+		repo = breaker.WrapRepository(repo, breaker.ForPostgres())
+		storage = breaker.WrapStorage(storage, breaker.ForMinio())
+		pub = breaker.WrapPublisher(pub, breaker.ForKafka())
+	}
+	svc := avatar.New(repo, storage, pub, nil, cfg.MaxUploadBytes)
 
 	avh := handlers.NewAvatarHTTP(svc, cfg.MaxUploadBytes, cfg.PublicBaseURL)
 	health := &handlers.Health{
@@ -116,8 +124,15 @@ func NewProfiled(ctx context.Context) (*Profiled, error) {
 		},
 	}
 	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           otelhttp.NewHandler(httpserver.NewRouter(httpserver.Deps{Log: log, Service: cfg.Telemetry.ServiceName, Avatar: avh, Health: health}), "http.server"),
+		Addr: cfg.HTTPAddr,
+		Handler: otelhttp.NewHandler(httpserver.NewRouter(httpserver.Deps{
+			Log:               log,
+			Service:           cfg.Telemetry.ServiceName,
+			Avatar:            avh,
+			Health:            health,
+			RateLimitRequests: cfg.RateLimitRequests,
+			RateLimitWindow:   cfg.RateLimitWindow,
+		}), "http.server"),
 		ReadHeaderTimeout: httpReadHeaderTimeout,
 		ReadTimeout:       httpReadWriteTimeout,
 		WriteTimeout:      httpReadWriteTimeout,

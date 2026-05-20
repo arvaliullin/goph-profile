@@ -16,4 +16,6 @@ var (
 	ErrMissingUserID = errors.New("missing user id")
 	// ErrMissingFile файл не передан.
 	ErrMissingFile = errors.New("missing file")
+	// ErrUnavailable внешняя зависимость недоступна (circuit breaker open).
+	ErrUnavailable = errors.New("service unavailable")
 )

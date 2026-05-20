@@ -94,6 +94,20 @@ var (
 		},
 		[]string{"service", "state"},
 	)
+	circuitBreakerState = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "goph_circuit_breaker_state",
+			Help: "Circuit breaker state: 0=closed, 1=open, 2=half-open",
+		},
+		[]string{"dependency"},
+	)
+	rateLimitRejectedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "goph_rate_limit_rejected_total",
+			Help: "Total HTTP requests rejected by rate limiter",
+		},
+		[]string{"service"},
+	)
 )
 
 func ensureRegistry() {
@@ -113,8 +127,22 @@ func ensureRegistry() {
 			kafkaConsumedTotal,
 			workerJobsTotal,
 			dbPoolStat,
+			circuitBreakerState,
+			rateLimitRejectedTotal,
 		)
 	})
+}
+
+// SetCircuitBreakerState обновляет gauge состояния breaker.
+func SetCircuitBreakerState(dependency string, state float64) {
+	ensureRegistry()
+	circuitBreakerState.WithLabelValues(dependency).Set(state)
+}
+
+// ObserveRateLimitRejected увеличивает счётчик отклонённых запросов.
+func ObserveRateLimitRejected(service string) {
+	ensureRegistry()
+	rateLimitRejectedTotal.WithLabelValues(service).Inc()
 }
 
 // MetricsHandler возвращает handler для endpoint /metrics.

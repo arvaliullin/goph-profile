@@ -17,7 +17,7 @@ func DockerAvailable() bool {
 	for _, sock := range []string{"/var/run/docker.sock", os.ExpandEnv("$HOME/.docker/run/docker.sock")} {
 		conn, err := dialer.DialContext(ctx, "unix", sock)
 		if err == nil {
-			_ = conn.Close()
+			conn.Close()
 			return true
 		}
 	}

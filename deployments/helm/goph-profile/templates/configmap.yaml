@@ -17,3 +17,6 @@ data:
   KAFKA_GROUP: {{ .Values.envConfig.workerKafkaGroup | quote }}
   PROFILED_SHUTDOWN_TIMEOUT: {{ .Values.envConfig.shutdownTimeoutProfiled | quote }}
   AVATARD_SHUTDOWN_TIMEOUT: {{ .Values.envConfig.shutdownTimeoutAvatard | quote }}
+  CIRCUIT_BREAKER_ENABLED: {{ .Values.envConfig.circuitBreakerEnabled | quote }}
+  RATE_LIMIT_REQUESTS: {{ .Values.envConfig.rateLimitRequests | quote }}
+  RATE_LIMIT_WINDOW: {{ .Values.envConfig.rateLimitWindow | quote }}

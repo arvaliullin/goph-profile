@@ -3,6 +3,7 @@ package httpserver
 import (
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/arvaliullin/goph-profile/internal/api/http/handlers"
 	"github.com/arvaliullin/goph-profile/internal/api/http/middleware"
@@ -22,10 +23,12 @@ import (
 
 // Deps зависимости HTTP API.
 type Deps struct {
-	Log     *slog.Logger
-	Service string
-	Avatar  *handlers.AvatarHTTP
-	Health  *handlers.Health
+	Log               *slog.Logger
+	Service           string
+	Avatar            *handlers.AvatarHTTP
+	Health            *handlers.Health
+	RateLimitRequests int
+	RateLimitWindow   time.Duration
 }
 
 // NewRouter собирает chi mux.
@@ -40,6 +43,9 @@ func NewRouter(d Deps) http.Handler {
 		))
 		r.Route("/api/v1", func(r chi.Router) {
 			r.Use(middleware.UserIDFromHeader)
+			if d.RateLimitRequests > 0 && d.RateLimitWindow > 0 {
+				r.Use(middleware.RateLimit(d.Service, d.RateLimitRequests, d.RateLimitWindow))
+			}
 			r.Post("/avatars", d.Avatar.Upload)
 			r.Get("/avatars/{avatarID}", d.Avatar.GetImage)
 			r.Get("/avatars/{avatarID}/metadata", d.Avatar.Metadata)

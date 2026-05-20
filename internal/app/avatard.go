@@ -13,6 +13,7 @@ import (
 	"github.com/arvaliullin/goph-profile/internal/core/ports"
 	"github.com/arvaliullin/goph-profile/internal/kafka"
 	"github.com/arvaliullin/goph-profile/internal/observability"
+	"github.com/arvaliullin/goph-profile/internal/pkg/breaker"
 	"github.com/arvaliullin/goph-profile/internal/repository/minio"
 	"github.com/arvaliullin/goph-profile/internal/repository/postgres"
 	"github.com/arvaliullin/goph-profile/internal/worker"
@@ -93,8 +94,13 @@ func NewAvatard(ctx context.Context) (*Avatard, error) {
 		return nil, fmt.Errorf("minio: %w", err)
 	}
 
-	repo := postgres.NewAvatarRepository(db.Pool)
-	proc := worker.NewProcessor(repo, st, log)
+	var repo ports.AvatarRepository = postgres.NewAvatarRepository(db.Pool)
+	storage := ports.ObjectStorage(st)
+	if cfg.CircuitBreakerEnabled {
+		repo = breaker.WrapRepository(repo, breaker.ForPostgres())
+		storage = breaker.WrapStorage(storage, breaker.ForMinio())
+	}
+	proc := worker.NewProcessor(repo, storage, log)
 
 	return &Avatard{
 		cfg:           cfg,
