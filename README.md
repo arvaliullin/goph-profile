@@ -9,7 +9,7 @@
 
 ## Архитектура
 
-[Архитектура GophProfile](docs/dia/arch.png)
+![Архитектура GophProfile](docs/dia/arch.png)
 
 | Компонент | Роль |
 | --- | --- |
