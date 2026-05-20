@@ -22,7 +22,7 @@ type ThumbnailItem struct {
 	URL  string `json:"url"`
 }
 
-// AvatarMetadataResponse JSON-метаданные аватара (GET metadata, список).
+// AvatarMetadataResponse JSON-метаданные аватара.
 type AvatarMetadataResponse struct {
 	ID               string          `json:"id"`
 	UserID           string          `json:"user_id"`
@@ -50,8 +50,7 @@ func NewAvatarUploadResponse(a *domain.Avatar, base string) *AvatarUploadRespons
 	}
 }
 
-// FromDomainAvatar строит метаданные для JSON из доменного аватара.
-// base - публичный префикс URL без завершающего слэша; пустая строка даёт относительные пути.
+// FromDomainAvatar строит метаданные для JSON; base - публичный префикс URL без завершающего слэша, пустая строка даёт относительные пути.
 func FromDomainAvatar(a *domain.Avatar, base string) *AvatarMetadataResponse {
 	path := fmt.Sprintf("/api/v1/avatars/%s", a.ID.String())
 	url := path

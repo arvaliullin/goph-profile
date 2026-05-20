@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/arvaliullin/goph-profile/internal/core/domain"
+	"github.com/arvaliullin/goph-profile/internal/testhelpers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -14,6 +15,9 @@ import (
 func TestAvatarRepository_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("docker")
+	}
+	if !testhelpers.DockerAvailable() {
+		t.Skip("docker is not available")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()

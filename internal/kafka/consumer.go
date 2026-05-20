@@ -28,6 +28,7 @@ var consumerHandlerRetry = retry.NewStrategy(
 	isConsumerHandlerRetryable,
 )
 
+// claimHandler маршрутизирует сообщения consumer group по топикам.
 type claimHandler struct {
 	cfg     Config
 	handler ports.GroupHandler
@@ -55,7 +56,7 @@ func (h *claimHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sara
 			attribute.Int64("messaging.kafka.partition", int64(msg.Partition)),
 		)
 		err := consumerHandlerRetry.DoWithRetry(ctx, func(ctx context.Context) error {
-			return dispatchMessage(msg.Topic, h.cfg, h.handler, ctx, msg.Value)
+			return dispatchMessage(ctx, msg.Topic, h.cfg, h.handler, msg.Value)
 		})
 		if err != nil {
 			span.RecordError(err)
@@ -75,7 +76,8 @@ func (h *claimHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sara
 	return nil
 }
 
-func dispatchMessage(topic string, cfg Config, gh ports.GroupHandler, ctx context.Context, value []byte) error {
+// dispatchMessage вызывает обработчик по имени топика.
+func dispatchMessage(ctx context.Context, topic string, cfg Config, gh ports.GroupHandler, value []byte) error {
 	switch topic {
 	case cfg.TopicUpload:
 		return gh.OnUpload(ctx, value)

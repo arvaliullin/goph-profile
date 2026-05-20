@@ -21,8 +21,8 @@ func TestDispatchMessage_routesByTopic(t *testing.T) {
 	mock.EXPECT().OnUpload(ctx, payload).Return(nil)
 	mock.EXPECT().OnDelete(ctx, payload).Return(nil)
 
-	require.NoError(t, dispatchMessage("up", cfg, mock, ctx, payload))
-	require.NoError(t, dispatchMessage("del", cfg, mock, ctx, payload))
+	require.NoError(t, dispatchMessage(ctx, "up", cfg, mock, payload))
+	require.NoError(t, dispatchMessage(ctx, "del", cfg, mock, payload))
 }
 
 func TestDispatchMessage_unknownTopic(t *testing.T) {
@@ -30,7 +30,7 @@ func TestDispatchMessage_unknownTopic(t *testing.T) {
 	cfg := Config{TopicUpload: "up", TopicDelete: "del"}
 	ctrl := gomock.NewController(t)
 	mock := mocks.NewMockGroupHandler(ctrl)
-	err := dispatchMessage("other", cfg, mock, context.Background(), []byte{})
+	err := dispatchMessage(context.Background(), "other", cfg, mock, []byte{})
 	require.ErrorIs(t, err, ErrUnknownTopic)
 }
 
@@ -41,6 +41,6 @@ func TestDispatchMessage_propagatesHandlerErrors(t *testing.T) {
 	mock := mocks.NewMockGroupHandler(ctrl)
 	boom := errors.New("boom")
 	mock.EXPECT().OnUpload(gomock.Any(), gomock.Any()).Return(boom)
-	err := dispatchMessage("up", cfg, mock, context.Background(), []byte{})
+	err := dispatchMessage(context.Background(), "up", cfg, mock, []byte{})
 	require.ErrorIs(t, err, boom)
 }

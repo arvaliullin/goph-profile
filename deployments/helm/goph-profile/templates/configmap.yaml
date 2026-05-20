@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "goph-profile.fullname" . }}-config
+  labels:
+    {{- include "goph-profile.labels" . | nindent 4 }}
+data:
+  HTTP_ADDR: {{ .Values.envConfig.httpAddr | quote }}
+  MINIO_ENDPOINT: {{ .Values.envConfig.minioEndpoint | quote }}
+  MINIO_SECURE: {{ .Values.envConfig.minioSecure | quote }}
+  MINIO_BUCKET: {{ .Values.envConfig.minioBucket | quote }}
+  KAFKA_BROKERS: {{ .Values.envConfig.kafkaBrokers | quote }}
+  KAFKA_TOPIC_UPLOAD: {{ .Values.envConfig.kafkaTopicUpload | quote }}
+  KAFKA_TOPIC_DELETE: {{ .Values.envConfig.kafkaTopicDelete | quote }}
+  MAX_UPLOAD_BYTES: {{ .Values.envConfig.maxUploadBytes | quote }}
+  PUBLIC_BASE_URL: {{ .Values.envConfig.publicBaseURL | quote }}
+  KAFKA_GROUP: {{ .Values.envConfig.workerKafkaGroup | quote }}
+  PROFILED_SHUTDOWN_TIMEOUT: {{ .Values.envConfig.shutdownTimeoutProfiled | quote }}
+  AVATARD_SHUTDOWN_TIMEOUT: {{ .Values.envConfig.shutdownTimeoutAvatard | quote }}

@@ -1,0 +1,12 @@
+profiled:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+
+avatard:
+  replicaCount: 1
+  autoscaling:
+    enabled: false
+
+serviceMonitor:
+  enabled: false

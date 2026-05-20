@@ -1,0 +1,171 @@
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+  name: ""
+
+rbac:
+  create: true
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+profiled:
+  replicaCount: 1
+  image:
+    repository: goph-profile/profiled
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  livenessProbe:
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  shutdown:
+    terminationGracePeriodSeconds: 30
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    cpuUtilization: 70
+    memoryUtilization: 80
+
+avatard:
+  replicaCount: 1
+  image:
+    repository: goph-profile/avatard
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 25m
+      memory: 48Mi
+    limits:
+      cpu: 150m
+      memory: 192Mi
+  livenessProbe:
+    initialDelaySeconds: 20
+    periodSeconds: 15
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startupProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 12
+  shutdown:
+    terminationGracePeriodSeconds: 30
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    cpuUtilization: 70
+    memoryUtilization: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  host: goph-profile.local
+  path: /
+  pathType: Prefix
+  tls: []
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  path: /metrics
+  labels: {}
+
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    enabled: true
+    ipBlock:
+      cidr: 0.0.0.0/0
+    ports:
+      - port: 53
+        protocol: UDP
+      - port: 53
+        protocol: TCP
+      - port: 5432
+        protocol: TCP
+      - port: 9000
+        protocol: TCP
+      - port: 9092
+        protocol: TCP
+
+migrationHook:
+  enabled: true
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  timeoutSeconds: 120
+
+envConfig:
+  httpAddr: ":8080"
+  minioEndpoint: "host.docker.internal:9000"
+  minioSecure: "false"
+  minioBucket: avatars
+  kafkaBrokers: "host.docker.internal:9092"
+  kafkaTopicUpload: "avatars.upload"
+  kafkaTopicDelete: "avatars.delete"
+  maxUploadBytes: "10485760"
+  publicBaseURL: "http://goph-profile.local"
+  workerKafkaGroup: "avatars-worker"
+  shutdownTimeoutProfiled: "10s"
+  shutdownTimeoutAvatard: "30s"
+
+secretEnv:
+  databaseURI: "postgres://avatars:avatars@host.docker.internal:5432/avatars?sslmode=disable"
+  minioAccessKey: "minioadmin"
+  minioSecretKey: "minioadmin"
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+waitForDeps:
+  enabled: true
+  image: busybox:1.36
+  host: host.docker.internal
+  ports:
+    - 5432
+    - 9000
+    - 9092

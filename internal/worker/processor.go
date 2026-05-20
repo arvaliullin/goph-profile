@@ -168,6 +168,7 @@ func (p *Processor) HandleUpload(ctx context.Context, raw []byte) error {
 	return nil
 }
 
+// thumbKey формирует ключ превью в объектном хранилище.
 func thumbKey(id uuid.UUID, label string, origMime string) string {
 	ext := ".jpg"
 	switch origMime {
@@ -179,6 +180,7 @@ func thumbKey(id uuid.UUID, label string, origMime string) string {
 	return "avatars/thumbnails/" + id.String() + "/" + label + ext
 }
 
+// mimeForThumb выбирает MIME для сохранения превью по MIME оригинала.
 func mimeForThumb(orig string) string {
 	switch orig {
 	case "image/png":

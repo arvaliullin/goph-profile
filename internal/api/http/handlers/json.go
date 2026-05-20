@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+// writeJSON пишет тело ответа в формате JSON.
 func writeJSON(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(code)
@@ -13,6 +14,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 	}
 }
 
+// writeError пишет JSON-ответ с кодом ошибки.
 func writeError(w http.ResponseWriter, code int, body any) {
 	writeJSON(w, code, body)
 }

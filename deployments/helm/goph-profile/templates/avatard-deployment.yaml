@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "goph-profile.componentName" (dict "ctx" . "name" "avatard") }}
+  labels:
+    {{- include "goph-profile.componentLabels" (dict "ctx" . "name" "avatard") | nindent 4 }}
+spec:
+  replicas: {{ .Values.avatard.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "goph-profile.componentSelectorLabels" (dict "ctx" . "name" "avatard") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "goph-profile.componentSelectorLabels" (dict "ctx" . "name" "avatard") | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+{{- include "goph-profile.waitForDepsInitContainers" . | nindent 6 }}
+      serviceAccountName: {{ include "goph-profile.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.avatard.shutdown.terminationGracePeriodSeconds }}
+      containers:
+        - name: avatard
+          image: "{{ .Values.avatard.image.repository }}:{{ .Values.avatard.image.tag }}"
+          imagePullPolicy: {{ .Values.avatard.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: SHUTDOWN_TIMEOUT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "goph-profile.fullname" . }}-config
+                  key: AVATARD_SHUTDOWN_TIMEOUT
+          envFrom:
+            - configMapRef:
+                name: {{ include "goph-profile.fullname" . }}-config
+            - secretRef:
+                name: {{ include "goph-profile.fullname" . }}-secret
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - grep -q avatard /proc/1/cmdline
+            initialDelaySeconds: {{ .Values.avatard.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.avatard.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.avatard.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.avatard.startupProbe.failureThreshold }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - grep -q avatard /proc/1/cmdline
+            initialDelaySeconds: {{ .Values.avatard.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.avatard.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.avatard.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.avatard.livenessProbe.failureThreshold }}
+          resources:
+            {{- toYaml .Values.avatard.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

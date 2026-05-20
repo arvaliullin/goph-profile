@@ -57,6 +57,18 @@ services:
       timeout: 5s
       retries: 20
 
+  migrate:
+    build:
+      context: ..
+      dockerfile: build/profiled.Dockerfile
+    command: ["./migrate"]
+    environment:
+      DATABASE_URI: postgres://avatars:avatars@postgres:5432/avatars?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   profiled:
     build:
       context: ..
@@ -79,6 +91,8 @@ services:
       OTEL_SERVICE_NAME: profiled
       OTEL_EXPORTER_OTLP_ENDPOINT: jaeger:4318
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       minio:

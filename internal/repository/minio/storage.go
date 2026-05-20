@@ -88,6 +88,7 @@ func (s *Storage) Delete(ctx context.Context, key string) error {
 	return err
 }
 
+// isNoSuchKeyOrBucket возвращает true для отсутствующего ключа или бакета.
 func isNoSuchKeyOrBucket(err error) bool {
 	if err == nil {
 		return false
@@ -96,8 +97,7 @@ func isNoSuchKeyOrBucket(err error) bool {
 	return code == "NoSuchKey" || code == "NoSuchBucket"
 }
 
-// DeleteMany удаляет объекты по возможности (best-effort).
-// Повторное удаление уже отсутствующих ключей не считается ошибкой (идемпотентность для worker).
+// DeleteMany удаляет объекты по возможности; отсутствующие ключи не считаются ошибкой.
 func (s *Storage) DeleteMany(ctx context.Context, keys []string) error {
 	ctx, span := otel.Tracer("minio-storage").Start(ctx, "s3.delete_many")
 	defer span.End()

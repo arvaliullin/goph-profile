@@ -1,0 +1,9 @@
+envConfig:
+  minioEndpoint: "host.rancher-desktop.internal:9000"
+  kafkaBrokers: "host.rancher-desktop.internal:9092"
+
+secretEnv:
+  databaseURI: "postgres://avatars:avatars@host.rancher-desktop.internal:5432/avatars?sslmode=disable"
+
+waitForDeps:
+  host: host.rancher-desktop.internal

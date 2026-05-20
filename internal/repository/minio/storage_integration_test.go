@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/arvaliullin/goph-profile/internal/testhelpers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	tminio "github.com/testcontainers/testcontainers-go/modules/minio"
@@ -16,6 +17,9 @@ import (
 func TestStorage_PutGetDeleteMany_idempotent(t *testing.T) {
 	if testing.Short() {
 		t.Skip("docker")
+	}
+	if !testhelpers.DockerAvailable() {
+		t.Skip("docker is not available")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()

@@ -1,0 +1,28 @@
+{{- if .Values.avatard.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "goph-profile.componentName" (dict "ctx" . "name" "avatard") }}
+  labels:
+    {{- include "goph-profile.componentLabels" (dict "ctx" . "name" "avatard") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "goph-profile.componentName" (dict "ctx" . "name" "avatard") }}
+  minReplicas: {{ .Values.avatard.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.avatard.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.avatard.autoscaling.cpuUtilization }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.avatard.autoscaling.memoryUtilization }}
+{{- end }}
